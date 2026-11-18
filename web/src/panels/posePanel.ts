@@ -1,4 +1,10 @@
-import type { AxisName, HumanoidRig, RigJoint, SolveResult } from "@rigpilot/core";
+import {
+  describePoseIssues,
+  type AxisName,
+  type HumanoidRig,
+  type RigJoint,
+  type SolveResult,
+} from "@rigpilot/core";
 import type { PoseState } from "../pose.js";
 
 /**
@@ -130,15 +136,19 @@ export class PosePanel {
     }
   }
 
+  /**
+   * The report a human sees is the report an agent gets: clamped values from `adjusted[]`, plus a
+   * complaint for any name the rig does not have. Both are in one place so the two paths cannot drift.
+   */
   report(solved: SolveResult): string {
-    if (solved.adjustments.length === 0)
-      return "no corrections — every value was inside its limits";
-    return solved.adjustments
-      .map(
+    const lines = [
+      ...solved.adjustments.map(
         a =>
           `${a.joint}.${a.axis}: asked ${a.requested.toFixed(0)}°, applied ${a.applied.toFixed(0)}° — ${a.reason}`,
-      )
-      .join("\n");
+      ),
+      ...describePoseIssues(this.rig, solved),
+    ];
+    return lines.length ? lines.join("\n") : "no corrections — every value was inside its limits";
   }
 }
 

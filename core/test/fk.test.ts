@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { loadHumanoidRig } from "../src/rig/index.js";
-import { boneDirection, localRotation, rootRotation, solve } from "../src/kinematics/fk.js";
+import {
+  boneDirection,
+  describePoseIssues,
+  localRotation,
+  rootRotation,
+  solve,
+} from "../src/kinematics/fk.js";
 import {
   IDENTITY,
   conjugate,
@@ -125,5 +131,48 @@ describe("FK", () => {
         -2 + rig.restPose.joints["chest"]![2],
       ]),
     );
+  });
+});
+
+const near = (a: Vec3, b: Vec3, eps = 1e-9): boolean =>
+  Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]) < eps;
+
+describe("pose names the rig does not have", () => {
+  it("reports a bone name instead of a joint name, and points at the joint that owns it", () => {
+    const solved = solve(rig, { joints: { thigh_L: { flex: 90 } } });
+    expect(solved.unknownJoints).toEqual(["thigh_L"]);
+    // and it is a no-op on the body, which is exactly why it has to be said out loud
+    expect(near(solved.joints.knee_L!.position, rig.restPose.joints.knee_L!)).toBe(true);
+    const [msg] = describePoseIssues(rig, solved);
+    expect(msg).toContain("is a bone, not a joint");
+    expect(msg).toContain("hip_L");
+  });
+
+  it("reports an axis the joint does not define", () => {
+    const solved = solve(rig, { joints: { knee_L: { side: 20 } } });
+    expect(solved.unknownAxes).toEqual(["knee_L.side"]);
+    const [msg] = describePoseIssues(rig, solved);
+    expect(msg).toContain('"flex"');
+    expect(msg).toContain("hinge");
+  });
+
+  it("reports a DoF asked of an end site, which has none", () => {
+    const solved = solve(rig, { joints: { head_end: { flex: 15 } } });
+    expect(solved.unknownAxes).toEqual(["head_end.flex"]);
+    expect(describePoseIssues(rig, solved)[0]).toContain("end site");
+    expect(near(solved.joints.head_end!.position, rig.restPose.joints.head_end!)).toBe(true);
+  });
+
+  it("reports nothing for a legal pose, and keeps report order deterministic", () => {
+    expect(
+      solve(rig, { joints: { hip_L: { flex: 90 }, knee_L: { flex: 30 } } }).unknownJoints,
+    ).toEqual([]);
+    const messy = solve(rig, {
+      joints: { zzz: {}, thigh_R: {}, knee_L: { nope: 1 }, hip_L: { flex: 10 } },
+    });
+    expect(messy.unknownJoints).toEqual(["zzz", "thigh_R"]);
+    expect(messy.unknownAxes).toEqual(["knee_L.nope"]);
+    // a name that is not a joint still contributes no rotation, whatever the caller meant
+    expect(messy.adjustments).toEqual([]);
   });
 });

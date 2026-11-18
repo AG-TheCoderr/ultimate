@@ -48,6 +48,68 @@ export interface SolveResult {
    * distinguishable, per RECONCILIATION §4.1.
    */
   readonly unauthored: readonly string[];
+  /**
+   * Names the pose mentioned that are not joints at all — a bone name (`thigh_L`), a typo, an engine's
+   * naming. Reported, never ignored: §13's no-silent-failures rule means `ok` with nothing moved is the
+   * single worst answer an agent can get, because it will keep asking.
+   */
+  readonly unknownJoints: readonly string[];
+  /** `joint.axis` pairs the named joint does not define — including any DoF asked of an end site. */
+  readonly unknownAxes: readonly string[];
+}
+
+/**
+ * What a pose's names look like from the rig's side. Kept out of `clampPose` because clamping is
+ * per-axis arithmetic while this is about the request itself. Insertion order is preserved so the
+ * report is deterministic for a given request.
+ */
+export function recognizePoseNames(
+  rig: HumanoidRig,
+  joints: SemanticPose["joints"],
+): { unknownJoints: string[]; unknownAxes: string[] } {
+  const unknownJoints: string[] = [];
+  const unknownAxes: string[] = [];
+  for (const [name, values] of Object.entries(joints ?? {})) {
+    const joint = rig.joints.find(j => j.name === name);
+    if (!joint) {
+      unknownJoints.push(name);
+      continue;
+    }
+    for (const axis of Object.keys(values ?? {})) {
+      if (!joint.axes.some(a => a.name === axis)) unknownAxes.push(`${name}.${axis}`);
+    }
+  }
+  return { unknownJoints, unknownAxes };
+}
+
+/**
+ * Prose for the two arrays above, in one place so the studio panel and the MCP `warnings[]` tell the
+ * agent the same thing. The bone case gets a pointer because it is the confusion this exists for:
+ * `thigh_L` is a bone, and the thing you can pose is the joint it hangs from.
+ */
+export function describePoseIssues(
+  rig: HumanoidRig,
+  issues: { unknownJoints: readonly string[]; unknownAxes: readonly string[] },
+): string[] {
+  const out: string[] = [];
+  for (const name of issues.unknownJoints) {
+    const bone = rig.bones.find(b => b.name === name);
+    out.push(
+      bone
+        ? `"${name}" is a bone, not a joint. Pose \`${bone.from}\` to move it (the bone is rigidly attached to that joint); \`${bone.to}\` is the joint at its far end.`
+        : `"${name}" is not a joint of this rig. Rig joints: ${rig.joints.map(j => j.name).join(", ")}.`,
+    );
+  }
+  for (const entry of issues.unknownAxes) {
+    const [jointName, axisName] = entry.split(".") as [string, string];
+    const joint = rig.joints.find(j => j.name === jointName)!;
+    out.push(
+      joint.axes.length === 0
+        ? `\`${entry}\`: ${jointName} is an end site with no DoFs, so there is nothing to set — its position follows ${joint.parent ?? "the root"}.`
+        : `\`${entry}\`: ${jointName} defines ${joint.axes.map(a => `"${a.name}" (${a.positiveMeans})`).join(", ")} — no "${axisName}".`,
+    );
+  }
+  return out;
 }
 
 /** Joints with no DoFs (end sites, the root) contribute identity. */
@@ -108,6 +170,7 @@ export function solve(
 ): SolveResult {
   const requested = pose.joints ?? {};
   const { pose: clamped, adjustments } = clampPose(rig.joints, requested, opts.mode ?? "hard");
+  const issues = recognizePoseNames(rig, requested);
 
   const rot: Record<string, Quat> = {};
   const pos: Record<string, Vec3> = {};
@@ -141,6 +204,8 @@ export function solve(
     unauthored: rig.joints
       .filter(j => j.axes.length > 0 && requested[j.name] === undefined)
       .map(j => j.name),
+    unknownJoints: issues.unknownJoints,
+    unknownAxes: issues.unknownAxes,
   };
 }
 

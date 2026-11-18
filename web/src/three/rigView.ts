@@ -38,7 +38,7 @@ export class RigView {
   private readonly entries: Entry[] = [];
   private readonly byJoint = new Map<string, Mesh[]>();
   private readonly selected = new Set<string>();
-  private readonly joints: Mesh[] = [];
+  private readonly pickableMeshes: Mesh[] = [];
 
   constructor(rig: HumanoidRig) {
     const palette =
@@ -67,14 +67,14 @@ export class RigView {
         }),
       );
       mesh.name = bound.label;
-      mesh.userData.rigpilot = { joint: bound.joint, kind: bound.kind };
+      mesh.userData.rigpilot = { joint: bound.parentJoint, kind: bound.kind };
       mesh.castShadow = false;
       mesh.receiveShadow = false;
       this.entries.push({ mesh, bound, parentJoint: bound.parentJoint, base });
       const list = this.byJoint.get(bound.parentJoint) ?? [];
       list.push(mesh);
       this.byJoint.set(bound.parentJoint, list);
-      if (bound.joint) this.joints.push(mesh);
+      this.pickableMeshes.push(mesh);
       this.group.add(mesh);
     }
     // no priming pass: main.ts calls update(solve(rig, {})) on startup, and the rest pose is just
@@ -147,11 +147,15 @@ export class RigView {
     mat.emissiveIntensity = intensity;
   }
 
-  /** Picking targets: joint spheres only, so clicking a bone selects the joint it hangs from. */
+  /**
+   * Everything is pickable. Joint spheres alone were 5-7 cm targets floating inside the limb they
+   * belonged to; a bone cylinder is the same joint's own geometry, and `parentJoint` maps it back.
+   */
   pickables(): readonly Mesh[] {
-    return this.joints;
+    return this.pickableMeshes;
   }
 
+  /** The joint that owns the mesh the ray hit. */
   jointOf(mesh: Mesh): string | null {
     return (mesh.userData.rigpilot as { joint?: string } | undefined)?.joint ?? null;
   }

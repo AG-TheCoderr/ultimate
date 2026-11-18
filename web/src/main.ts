@@ -14,7 +14,7 @@ const canvas = mustExist("view") as HTMLCanvasElement;
 const info = mustExist("info");
 const out = mustExist("report");
 
-// Selection is a Set, not an array: shift-click adds a joint and re-adding must not double-highlight.
+// A Set, not an array: shift-click can re-add a joint without double-highlighting it.
 let selected: Set<string> = new Set();
 const studio = new Studio(canvas);
 studio.init();
@@ -22,18 +22,28 @@ const view = new RigView(rig);
 studio.scene.add(view.group);
 
 const state = new PoseState(rig);
-const panel = new PosePanel(rig, state, mustExist("panel"), joint => {
-  view.setSelected(joint ? [joint] : []);
-  info.textContent = joint ? `selected ${joint}` : "click a joint sphere or pick from the list";
-});
+const panel = new PosePanel(rig, state, mustExist("panel"), joint =>
+  applySelection(joint ? [joint] : [], joint),
+);
+
+/** One place to keep the 3D highlight, the joint list and the caption in step. */
+function applySelection(joints: readonly string[], primary: string | null): void {
+  selected = new Set(joints);
+  view.setSelected(selected);
+  panel.select(primary);
+  info.textContent = selected.size
+    ? `selected ${[...selected].join(", ")}${selected.size > 1 ? " (all move together)" : ""}`
+    : "click a joint sphere or pick from the list";
+}
 
 const apply = (): void => {
   const solved = state.solve();
   view.update(solved);
   panel.sync();
-  const text = panel.report(solved);
-  out.textContent = text;
-  out.classList.toggle("bad", solved.adjustments.length > 0);
+  out.textContent = panel.report(solved);
+  const complaints =
+    solved.adjustments.length + solved.unknownJoints.length + solved.unknownAxes.length;
+  out.classList.toggle("bad", complaints > 0);
   rev.textContent = `rev ${state.revision}`;
 };
 
@@ -49,17 +59,9 @@ canvas.addEventListener("pointerup", e => {
   if (dragging) return; // an orbit drag is not a selection
   const hit = studio.pick(e, view.pickables());
   const joint = hit ? view.jointOf(hit) : null;
-  if (e.shiftKey && joint) {
-    const next = new Set<string>([...selected, joint]);
-    selected = next;
-    view.setSelected(next);
-    info.textContent = `selected ${[...next].join(", ")}`;
-    return;
-  }
-  selected = joint ? new Set([joint]) : new Set();
-  panel.select(joint);
+  if (e.shiftKey && joint) applySelection([...selected, joint], joint);
+  else applySelection(joint ? [joint] : [], joint);
 });
-// A set, not an array: shift-click adds the same joint twice without double-highlighting.
 
 const rev = mustExist("rev");
 mustExist("reset").addEventListener("click", () => state.reset());
@@ -89,7 +91,7 @@ window.addEventListener("resize", () => studio.resize());
 apply();
 studio.resize();
 
-window.addEventListener("beforeunload", () => void unsub());
+void unsub; // the subscription lives for the page's lifetime; kept explicit that nothing else tears it down
 
 function mustExist(id: string): HTMLElement {
   const n = document.getElementById(id);

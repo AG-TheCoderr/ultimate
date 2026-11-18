@@ -91,6 +91,68 @@ describe("bindPrimitives", () => {
     expect(dist(moved.position, straight.position)).toBeCloseTo(Math.hypot(0.5, 0, -1), 9);
   });
 
+  it("a posed bone cylinder still connects its joint to the next one", () => {
+    // The rest-pose checks above would pass for a binding that only works when every parent rotation
+    // is identity. This is the viewer's actual per-frame contract, so it gets its own test: after
+    // solving, reconstructing each cylinder's endpoints must land on the SOLVED joint positions.
+    const solved = solve(rig, {
+      joints: {
+        hips: { flex: 12, side: -6, twist: 22 },
+        thigh_L: { flex: 75, side: 10, twist: -15 },
+        knee_L: { flex: 61 },
+        upper_arm_R: { flex: 120, twist: 40 },
+        elbow_R: { flex: 33 },
+        neck: { side: 18 },
+      },
+      root: {
+        heading: -35,
+        position: [rig.root.restPosition[0] + 0.3, rig.root.restPosition[1], 0],
+      },
+    });
+    let worst = 0;
+    for (const b of rig.bones) {
+      const prim = prims.find(p => p.label === `bone:${b.name}`)!;
+      const w = bindWorld(solved.joints[b.from]!, prim);
+      // the WORLD axis of the cylinder: bindWorld already folded in the parent's rotation. Using the
+      // primitive's own rest-space quaternion here would compare the thigh against where it points in
+      // the rest pose, which is precisely not what a posed body does.
+      const dir = rotate(w.quaternion, UP);
+      const solvedLen = dist(solved.joints[b.from]!.position, solved.joints[b.to]!.position);
+      // rigid FK: bone length never changes, which is the assumption a cylinder bound this way needs
+      expect(solvedLen).toBeCloseTo(dist(rest[b.from]!, rest[b.to]!), 9);
+      const half = solvedLen / 2;
+      const err = Math.max(
+        dist(
+          [
+            w.position[0] + dir[0] * half,
+            w.position[1] + dir[1] * half,
+            w.position[2] + dir[2] * half,
+          ],
+          solved.joints[b.to]!.position,
+        ),
+        dist(
+          [
+            w.position[0] - dir[0] * half,
+            w.position[1] - dir[1] * half,
+            w.position[2] - dir[2] * half,
+          ],
+          solved.joints[b.from]!.position,
+        ),
+      );
+      worst = Math.max(worst, err);
+    }
+    expect(worst).toBeLessThan(1e-6);
+  });
+
+  it("every primitive names the joint that owns it, so picking a bone selects that bone's joint", () => {
+    const owners = new Map(prims.map(p => [p.parentJoint, p.kind]));
+    for (const j of rig.joints) expect(owners.has(j.name)).toBe(true);
+    for (const b of rig.bones) {
+      const prim = prims.find(p => p.label === `bone:${b.name}`)!;
+      expect(prim.parentJoint).toBe(b.from); // FK: the thigh belongs to the hip, not the knee
+    }
+  });
+
   it("joint spheres sit on their own joint in every solved pose", () => {
     const solved = solve(rig, {
       joints: {

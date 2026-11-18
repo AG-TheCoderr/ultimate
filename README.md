@@ -11,6 +11,8 @@ Blender and Three.js. Fully usable by a human with no AI in the loop.
 
 > The contract that makes this work: **when the agent asks for something impossible, the app does not
 > fail.** It clamps to the nearest legal value and reports what it adjusted, so the agent can learn.
+> A name the rig does not have (a bone where a joint belongs, an axis a hinge does not have) is
+> reported in `unknownJoints[]` / `unknownAxes[]` rather than quietly ignored.
 
 **Status: M1 is in** — the rig loads, validates, and can be posed by hand in the browser with limits
 enforced. M2 (timeline, keyframes, playback, persistence) is next. Milestones:
@@ -19,7 +21,7 @@ enforced. M2 (timeline, keyframes, playback, persistence) is next. Milestones:
 |           |                                                                                                                                                                                  |
 | --------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | M0 ✅     | workspaces, strict TS, ESLint + Prettier, vitest, CI + Pages deploy, the rig as validated data                                                                                   |
-| M1 ✅     | FK on semantic axes, limit clamping with `adjusted` reports, three.js viewer, click-to-select, per-DoF sliders. All ten of §6's semantic tests now run in `core/` too (32 tests) |
+| M1 ✅     | FK on semantic axes, limit clamping with `adjusted` reports, three.js viewer, click-to-select, per-DoF sliders, rest-space primitive binding in `core/src/rig/`. All ten of §6's semantic tests now run in `core/` too (43 tests) |
 | M2 ·next· | timeline, keyframes, interpolation + easing, undo/redo, autosave, project file                                                                                                   |
 | M3–M7     | relay + MCP + activity log · IK, contacts, root motion, mirroring · validation + previews · GLB/BVH export · gait generator + WebMCP                                             |
 

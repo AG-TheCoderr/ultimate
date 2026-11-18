@@ -27,15 +27,17 @@ export type BindKind = "bone" | "joint" | "head" | "torso";
 export interface BoundPrimitive {
   readonly label: string;
   readonly kind: BindKind;
-  /** The single joint this primitive rides. */
+  /**
+   * The single joint this primitive rides — and the one a click on it selects. There is deliberately
+   * ONE owner per primitive (FK: rotating `hip` moves the thigh, so the thigh belongs to `hip`, not
+   * to `knee`), which is why picking a bone and picking a joint sphere light up the same meshes.
+   */
   readonly parentJoint: string;
   readonly position: Vec3;
   readonly quaternion: Quat;
   readonly scale: Vec3;
   /** Key into `rig.mesh.colors`; the viewer resolves it, core stays renderer-free. */
   readonly colorKey: "bone" | "left" | "right" | "center";
-  /** Set on pickable joint spheres so a click maps back to a joint name. */
-  readonly joint?: string;
 }
 
 const UP: Vec3 = [0, 1, 0];
@@ -95,7 +97,6 @@ export function bindPrimitives(rig: HumanoidRig): BoundPrimitive[] {
       quaternion: [0, 0, 0, 1],
       scale: [j.radius, j.radius, j.radius],
       colorKey: j.color,
-      joint: j.name,
     });
   }
 
