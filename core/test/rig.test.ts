@@ -19,7 +19,7 @@ describe("humanoid.rig.json", () => {
   it("keeps the floor at Y=0 in the rest pose", () => {
     expect(rig.markers.every(m => m.restPosition[1] === 0)).toBe(true);
     expect(rig.root.restPosition[1]).toBeCloseTo(0.98, 6);
-    expect(rig.restPose.joints["toe_end_L"][1]).toBe(0);
+    expect(rig.restPose.joints["toe_end_L"]?.[1]).toBe(0);
   });
 
   it("has anatomically plausible proportions", () => {

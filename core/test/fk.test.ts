@@ -75,7 +75,7 @@ describe("FK", () => {
     );
     expect(Math.abs(twistOutermost[1])).toBeGreaterThan(0.1); // the elbow drops: this is the bug our order avoids
     // ...while our order, swing-then-twist-applied-first, leaves it level.
-    const ours = localRotation(shoulder, { flex: 90, twist: 90 });
+    const ours = localRotation(shoulder, { flex: 90, side: 0, twist: 90 });
     expect(round9(rotate(ours, [0.34, 0, 0]))).toEqual(
       round9(rotate(fromAxisAngle(flexAxis, 90), [0.34, 0, 0])),
     );
@@ -167,8 +167,11 @@ describe("pose names the rig does not have", () => {
     expect(
       solve(rig, { joints: { hip_L: { flex: 90 }, knee_L: { flex: 30 } } }).unknownJoints,
     ).toEqual([]);
+    // typed as a plain record so an axis that does not exist can be asked for at all: the point of the
+    // test is that the rig reports it rather than ignoring it, not that TS allows it
+    const bogusAxis: Record<string, number> = { nope: 1 };
     const messy = solve(rig, {
-      joints: { zzz: {}, thigh_R: {}, knee_L: { nope: 1 }, hip_L: { flex: 10 } },
+      joints: { zzz: {}, thigh_R: {}, knee_L: bogusAxis, hip_L: { flex: 10 } },
     });
     expect(messy.unknownJoints).toEqual(["zzz", "thigh_R"]);
     expect(messy.unknownAxes).toEqual(["knee_L.nope"]);

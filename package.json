@@ -18,7 +18,7 @@
     "lint": "eslint .",
     "fmt": "prettier --write .",
     "fmt:check": "prettier --check .",
-    "typecheck": "tsc -b core relay && tsc -p web --noEmit",
+    "typecheck": "tsc -b core relay && tsc -p core/test --noEmit && tsc -p web --noEmit",
     "dev": "npm run dev -w web",
     "rig": "python3 tools/gen-rig.py && python3 tools/check-rig.py"
   },
