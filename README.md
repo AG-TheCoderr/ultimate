@@ -15,15 +15,17 @@ Blender and Three.js. Fully usable by a human with no AI in the loop.
 > reported in `unknownJoints[]` / `unknownAxes[]` rather than quietly ignored.
 
 **Status: M1 is in** — the rig loads, validates, and can be posed by hand in the browser with limits
-enforced. M2 (timeline, keyframes, playback, persistence) is next. Milestones:
+enforced. M2 (timeline, keyframes, playback, persistence) has landed: a clip model in `core/src/anim/`,
+a scrubbable timeline, undo/redo, autosave and `*.rigpilot.json` files. M3 (the relay and the MCP tools
+that drive this same store) is next. Milestones:
 [`docs/VISION.md`](docs/VISION.md) §12.
 
-|           |                                                                                                                                                                                  |
-| --------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| M0 ✅     | workspaces, strict TS, ESLint + Prettier, vitest, CI + Pages deploy, the rig as validated data                                                                                   |
-| M1 ✅     | FK on semantic axes, limit clamping with `adjusted` reports, three.js viewer, click-to-select, per-DoF sliders, rest-space primitive binding in `core/src/rig/`. All ten of §6's semantic tests now run in `core/` too (43 tests) |
-| M2 ·next· | timeline, keyframes, interpolation + easing, undo/redo, autosave, project file                                                                                                   |
-| M3–M7     | relay + MCP + activity log · IK, contacts, root motion, mirroring · validation + previews · GLB/BVH export · gait generator + WebMCP                                             |
+|       |                                                                                                                                                                                                                                                   |
+| ----- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| M0 ✅ | workspaces, strict TS, ESLint + Prettier, vitest, CI + Pages deploy, the rig as validated data                                                                                                                                                    |
+| M1 ✅ | FK on semantic axes, limit clamping with `adjusted` reports, three.js viewer, click-to-select, per-DoF sliders, rest-space primitive binding in `core/src/rig/`. All ten of §6's semantic tests now run in `core/` too (43 tests)                 |
+| M2 ✅ | Clip model in `core/src/anim/` (keys, per-DoF interpolation with ease modes, monotone auto tangents, loop wrap), timeline with key markers + scrub + play/loop, undo/redo, autosave, `*.rigpilot.json` save/open. 128 tests (120 core + 8 studio) |
+| M3–M7 | relay + MCP + activity log · IK, contacts, root motion, mirroring · validation + previews · GLB/BVH export · gait generator + WebMCP                                                                                                              |
 
 ```
 docs/VISION.md          the spec — direction for every milestone (read this first)
@@ -39,7 +41,7 @@ tools/gen-rig.py · tools/check-rig.py   generates it · 18 checks including §6
 
 ```bash
 npm install          # Node 20+
-npm test             # core/ invariants (vitest)
+npm test             # core/ invariants + the studio's store tests (vitest, both workspaces)
 npm run lint         # eslint (type-aware)
 npm run typecheck
 npm run build        # core -> dist, relay -> dist, web -> web/dist
@@ -51,6 +53,15 @@ npm run rig          # regenerate + re-verify the rig; CI asserts the committed 
 ```bash
 npm run dev          # vite on 0.0.0.0:5173
 ```
+
+Keyboard: space plays/pauses, ← / → step a frame, shift+← / shift+→ jump to the previous/next keyed
+frame, `K` keys the current pose, ctrl+z / ctrl+shift+z undo and redo. A joint the clip has keyed is
+driven by the timeline (editing it writes a key at the current frame, as in every DCC); a joint nobody
+has keyed still edits the free pose, and both survive a reload through the autosave.
+
+The quickest look at the whole M2 loop: press **3-pose wave**, watch it play, reload the page — the clip,
+the playhead, the selection and the un-keyed scratch values all come back. `save .json` writes a
+`<clip name>.rigpilot.json` you can diff, commit, or hand to an agent.
 
 ## Run the relay + connect an agent (M3 onward)
 

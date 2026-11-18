@@ -150,6 +150,11 @@ export function sampleClip(
   };
 }
 
+/** The last legal frame: `frameCount` frames means 0..frameCount-1. Every clamp in core uses this. */
+export function lastFrame(clip: Pick<Clip, "frameCount">): number {
+  return clip.frameCount - 1;
+}
+
 /** Snap-to-key for the transport. `keys.keyedFrames` is the single source of "which frames are keyed". */
 export function nextKeyFrame(clip: Clip, frame: number): number | null {
   return keyedFrames(clip).find(f => f > frame) ?? null;

@@ -10,22 +10,27 @@
     <div id="shell">
       <aside id="side">
         <h1>RigPilot</h1>
-        <p class="sub">M1 &middot; pose the body by hand. Timeline: M2. Agent over MCP: M3.</p>
+        <p class="sub">
+          M2 &middot; pose the body and key it on a timeline. Agent over MCP: M3. IK: M4.
+        </p>
         <div class="bar">
-          <button id="reset">reset</button>
+          <button id="reset">reset pose</button>
           <button id="random">random legal pose</button>
-          <button id="wave">wave</button>
+          <button id="wave">3-pose wave</button>
           <span id="rev" class="rev"></span>
         </div>
         <div id="panel"></div>
       </aside>
       <main id="stage">
         <canvas id="view"></canvas>
-        <div id="info" class="hud">
-          click a joint sphere (shift-click to add) or pick from the list
-        </div>
+        <div id="info" class="hud"></div>
+        <div id="status" class="hud status"></div>
         <pre id="report" class="hud report"></pre>
       </main>
+      <footer id="dock">
+        <div id="timeline"></div>
+        <div id="clip"></div>
+      </footer>
     </div>
     <script type="module" src="/src/main.ts"></script>
   </body>

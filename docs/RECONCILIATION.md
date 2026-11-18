@@ -152,5 +152,57 @@ implemented; the **1.089 span/height** stays authored as VISION wrote it (flagge
 `foot`/`toe_bone` keep their radii (2–3 cm of rest sink is intentional, matching what games do).
 
 Implementation home for these: `core/src/anim/` (sampling + merge semantics), and their tests are
-`core/test/{keys,interpolation}.test.ts`. They are deliberately _not_ flags in the rig JSON: the rig is
-geometry, this is clip behaviour.
+`core/test/{keys,interpolation}.test.ts` (all three landed with M2, with §5's extra decisions noted in the
+same file). They are deliberately _not_ flags in the rig JSON: the rig is geometry, this is clip behaviour.
+
+---
+
+## 5. Decisions taken for M2 (VISION silent or under-specified; 2026-11-18)
+
+Five things the clip model had to settle. None is a change to §6's physics; all of them are visible in
+the file format or in what an agent is told, so they are written down rather than assumed.
+
+1. **Interpolation is per-DoF scalar channels, not `slerp`/`squad`.** §7.2 step 2 says "interpolate joint
+   keys (quaternion slerp/squad with ease)". Interpolating quaternions cannot be clamped to `min`/`max`
+   or reported per-axis — which is the entire mechanism §9 is built on — and decomposing a squad result
+   back into swing/twist to check it is not unique near 180°. So each semantic axis is its own channel and
+   `localRotation` composes the quaternion from the clamped degrees, i.e. the same composition §5.3 tests.
+   Consequence worth knowing: an `ease` or `step` applies to one axis and not to its siblings, which is
+   what an animator means by "ease this bend".
+2. **`auto` tangents are Fritsch–Carlson monotone, not textbook Catmull-Rom.** The classical slope
+   `(v[i+1]-v[i-1])/(f[i+1]-f[i-1])` is C1 but not monotone: on a shoulder keyed `0, 100, 100, 0` it
+   bulges to ~123, so the limb snaps 23° past a pose it was keyed on and comes back — the most common
+   "loose CG" artefact, and fatal to §13's physical-correctness claim. `auto` is now the harmonic mean of
+   the two one-sided secant slopes, and 0 at an extremum. It reproduces a linear ramp exactly (so `auto`
+   with evenly-paced keys is still linear between them) and never leaves the keyed range. This is the part
+   of §4.2's ratified `auto` that needed a decision the spec did not make.
+3. **Loop wrap is done by padding one lap of real keys, never by reflecting.** `padLooped` prepends
+   `last - frameCount` and appends `first + frameCount` to the channel before sampling, so the seam is an
+   ordinary segment with real neighbours (which is also what makes frame 0 Catmull-Rom under `auto`). For
+   heading the pad value is `first + round((last-first)/360)*360` — frame 0's value expressed in the last
+   key's winding — so a turn that closes a full circle keeps turning instead of unwinding across the seam.
+   Non-looping clips hold the end keys outside the range, per every DCC.
+4. **The project file carries the studio's view, including the un-keyed scratch pose.** §7.6 only says
+   "project file"; M2's done-when is "reload the page and it's still there", which is false if a pose
+   dragged out on an un-keyed joint vanishes on refresh. So `view: { frame, selected, camera?, freePose? }`
+   is part of the format, and `freePose` is validated through the same limit clamps a key goes through.
+   Keys are never invented from it: a channel with no keys stays out of `jointKeys`, so `unauthored`
+   keeps meaning "nobody decided yet" (§4.1) rather than "decided: rest".
+5. **Undo and redo bump `revision`; they do not rewind it.** §7.5 says each mutation increments revision
+   but not what undo does to it. Rewinding would let anything watching `revision` (the autosave stamp, and
+   in M3 the relay's staleness check) see a number smaller than one it already handled and conclude it was
+   current with a state it had never seen. So `ClipHistory` owns the counter, snapshots store `revision: 0`,
+   and the live clip's revision is derived on read.
+
+Two smaller conventions, both recorded here because they are observable through MCP:
+
+- **A key's `ease` describes the segment leaving it**, and `setKeyPose` replaces it wholesale on a rewrite
+  of the same frame (there is no "leave the old ease alone" sentinel in §9).
+- **Values are clamped at the door, not at sample time.** `set_key_pose` refuses to store an illegal
+  degree and reports the clamp as an `adjusted[]` entry; sampling then uses the solver band, so the only
+  way to reach it is a hand-edited file — which is exactly when a report is worth having. §7.2's step-7
+  "final clamp is report-only" is preserved for M4's IK path, where the clamp is not a no-op.
+
+Files: `core/src/anim/{types,keys,interpolation,clip,edit,history,project}.ts`,
+`core/test/{keys,interpolation,clip,project,history}.test.ts`, `web/src/{store,timeline,storage}.ts`,
+`web/src/panels/clipPanel.ts`, `web/test/store.test.ts`.

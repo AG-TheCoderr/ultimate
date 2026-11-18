@@ -1,4 +1,5 @@
-import type { HumanoidRig } from "../rig/types.js";
+import type { AxisName, HumanoidRig } from "../rig/types.js";
+import { clampAxis } from "../kinematics/limits.js";
 import type { IKTargetValue } from "./types.js";
 import { setClipSettings, setContacts, setKeyPose, type EditReport } from "./edit.js";
 import { EASE_MODES, type Clip, type EaseMode, type Key, type RootKeyValue } from "./types.js";
@@ -21,6 +22,12 @@ export interface ProjectView {
   readonly frame?: number;
   readonly selected?: readonly string[];
   readonly camera?: "front" | "side" | "top" | "perspective";
+  /**
+   * The studio's scratch pose: values on joints the clip has never keyed. It is in the file because
+   * "reload and it is still there" has to be true for a pose you dragged out by hand too, not only for a
+   * pose you keyed — and because silently dropping it would make the timeline a thing that loses work.
+   */
+  readonly freePose?: Readonly<Record<string, Partial<Record<AxisName, number>>>>;
 }
 
 export interface ProjectFile {
@@ -108,7 +115,26 @@ function clipToJson(clip: Clip): Record<string, unknown> {
 }
 
 export function serializeProject(clip: Clip, rig: HumanoidRig, view?: ProjectView): string {
-  return `${JSON.stringify({ format: PROJECT_FORMAT, version: PROJECT_VERSION, rigId: rig.id, clip: clipToJson(clip), ...(view ? { view } : {}) }, null, 2)}\n`;
+  // view is written in a fixed order too, so two sessions with the same state produce the same bytes
+  const viewJson = view
+    ? {
+        ...(view.frame === undefined ? {} : { frame: view.frame }),
+        ...(view.selected ? { selected: [...view.selected].sort() } : {}),
+        ...(view.camera ? { camera: view.camera } : {}),
+        ...(() => {
+          const free = view.freePose;
+          if (!free) return {};
+          return {
+            freePose: Object.fromEntries(
+              Object.keys(free)
+                .sort()
+                .map(j => [j, Object.fromEntries(Object.entries(free[j] ?? {}).sort())]),
+            ),
+          };
+        })(),
+      }
+    : undefined;
+  return `${JSON.stringify({ format: PROJECT_FORMAT, version: PROJECT_VERSION, rigId: rig.id, clip: clipToJson(clip), ...(viewJson ? { view: viewJson } : {}) }, null, 2)}\n`;
 }
 
 /** Revision-free, key-order-canonical: what `history.ts` compares to decide "did anything change". */
@@ -359,8 +385,40 @@ export function parseProject(text: string, rig: HumanoidRig): ParseResult {
   }
 
   const viewRaw = isRecord(raw.view) ? raw.view : null;
+  // The scratch pose goes through the same limit clamps as a key, because a hand-edited file can put
+  // anything in here and a NaN in the view must not become a NaN in the viewport.
+  let freePose: Record<string, Partial<Record<AxisName, number>>> | undefined;
+  if (isRecord(viewRaw?.freePose)) {
+    freePose = {};
+    for (const [name, values] of Object.entries(viewRaw?.freePose ?? {})) {
+      const joint = rig.joints.find(j => j.name === name);
+      if (!joint || joint.axes.length === 0) {
+        warnings.push(`view.freePose.${name} is not a posable joint of this rig — dropped`);
+        continue;
+      }
+      const kept: Partial<Record<AxisName, number>> = {};
+      for (const [axis, asked] of Object.entries(isRecord(values) ? values : {})) {
+        const spec = joint.axes.find(a => a.name === axis);
+        if (!spec) {
+          warnings.push(`view.freePose.${name}.${axis} is not a DoF of ${name} — dropped`);
+          continue;
+        }
+        const clamped = clampAxis(joint, spec, num(asked, 0), "hard");
+        kept[spec.name] = clamped.value;
+        if (clamped.adjustment) {
+          warnings.push(
+            `view.freePose ${clamped.adjustment.requested.toFixed(1)}° is outside ${name}.${spec.name}'s limits -> ${clamped.adjustment.applied.toFixed(1)}°`,
+          );
+        }
+      }
+      if (Object.keys(kept).length > 0) freePose[name] = kept;
+    }
+    if (Object.keys(freePose).length === 0) freePose = undefined;
+  }
+
   const view: ProjectView = viewRaw
     ? {
+        ...(freePose ? { freePose } : {}),
         frame: Math.min(Math.max(Math.round(num(viewRaw.frame, 0)), 0), next.frameCount - 1),
         ...(Array.isArray(viewRaw.selected)
           ? {

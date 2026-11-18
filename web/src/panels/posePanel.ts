@@ -1,17 +1,23 @@
 import {
   describePoseIssues,
   type AxisName,
+  type ClipSample,
   type HumanoidRig,
   type RigJoint,
   type SolveResult,
 } from "@rigpilot/core";
-import type { PoseState } from "../pose.js";
+import type { ProjectStore } from "../store.js";
 
 /**
  * Joint list + one slider per semantic DoF. The slider range IS the authored limit, so an illegal
  * value is not merely warned about — it cannot be expressed (VISION §6: "impossible poses are
  * impossible"). The numeric box next to it can go past the limit on purpose: that path shows the
  * `adjusted` report, which is the same report an MCP call returns, so a human sees what the agent sees.
+ *
+ * From M2 the sliders show the *sampled* pose, not a separate one: a joint the clip has keyed shows its
+ * value at the current frame and edits it by writing a key there (auto-key, as in every DCC), while a
+ * joint nobody has keyed still edits the free scratch pose. One display, two destinations, and the badge
+ * on the joint button says which.
  */
 export class PosePanel {
   private readonly joints: RigJoint[];
@@ -20,10 +26,12 @@ export class PosePanel {
     Map<AxisName, { range: HTMLInputElement; num: HTMLInputElement; hint: HTMLElement }>
   >();
   private selected: string | null = null;
+  /** The last thing a slider write refused to do, shown once in the report so it is not lost. */
+  private notes: readonly string[] = [];
 
   constructor(
     private readonly rig: HumanoidRig,
-    private readonly state: PoseState,
+    private readonly store: ProjectStore,
     private readonly root: HTMLElement,
     private readonly onSelect: (joint: string | null) => void,
   ) {
@@ -60,7 +68,7 @@ export class PosePanel {
       const sub = el("p", "sub");
       sub.textContent =
         j.kind === "root"
-          ? "root joint — position and heading are keyed on the clip, not here in M1"
+          ? "root joint — position and heading are keyed on the clip, not here"
           : `parent: ${j.parent ?? "—"} · role: ${j.role}`;
       block.append(h, sub);
       const axes = j.kind === "root" ? [] : j.axes;
@@ -86,7 +94,10 @@ export class PosePanel {
           (a.graze[0] || a.graze[1]
             ? ` · solver may graze ${a.min - a.graze[0]}…${a.max + a.graze[1]}°`
             : "");
-        const set = (deg: number): void => this.state.set(j.name, a.name, deg);
+        const set = (deg: number): void => {
+          const notes = this.store.setAxis(j.name, a.name, deg);
+          this.notes = notes;
+        };
         range.addEventListener("input", () => set(Number(range.value)));
         num.addEventListener("input", () => set(Number(num.value)));
         row.append(name, range, num, hint);
@@ -122,16 +133,27 @@ export class PosePanel {
     this.onSelect(joint);
   }
 
-  /** Keep the widgets in step with state (a viewer drag, an MCP call, or a reset). */
-  sync(): void {
-    const clamped = this.state.clamped();
+  /**
+   * Keep the widgets in step with the sampled pose. `all` is false during playback, when only the
+   * selected joint's block is on screen and 40 DOM writes a frame buys nothing.
+   */
+  sync(sample: ClipSample, all = true): void {
+    const keyed = new Set(sample.keyed.joints);
+    for (const b of this.root.querySelectorAll<HTMLButtonElement>("button.joint")) {
+      const name = b.dataset.joint ?? "";
+      b.classList.toggle("keyed", keyed.has(name));
+    }
     for (const [joint, axes] of this.rows) {
+      if (!all && joint !== this.selected) continue;
+      const values = sample.pose.joints?.[joint];
       for (const [name, widgets] of axes) {
-        const v = clamped[joint]?.[name] ?? 0;
-        const authored = this.state.get(joint, name);
+        const v = values?.[name] ?? 0;
         widgets.range.value = String(Math.round(v));
-        widgets.num.value = String(Math.round(authored));
-        widgets.num.classList.toggle("over", Math.round(authored) !== Math.round(v));
+        widgets.num.value = String(Math.round(v));
+        widgets.num.classList.toggle(
+          "over",
+          sample.solved.adjustments.some(a => a.joint === joint && a.axis === name),
+        );
       }
     }
   }
@@ -142,6 +164,7 @@ export class PosePanel {
    */
   report(solved: SolveResult): string {
     const lines = [
+      ...this.notes,
       ...solved.adjustments.map(
         a =>
           `${a.joint}.${a.axis}: asked ${a.requested.toFixed(0)}°, applied ${a.applied.toFixed(0)}° — ${a.reason}`,
