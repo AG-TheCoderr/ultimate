@@ -3,35 +3,46 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>RigPilot</title>
+    <meta
+      name="description"
+      content="RigPilot — pose a humanoid body, key it on a timeline, and play it. Joint limits make impossible poses impossible. An AI agent can drive the same studio over MCP."
+    />
+    <meta name="color-scheme" content="dark" />
+    <meta name="theme-color" content="#14161a" />
+    <title>RigPilot · pose, key and play a humanoid</title>
     <link rel="stylesheet" href="/src/style.css" />
   </head>
   <body>
     <div id="shell">
+      <header id="top"></header>
       <aside id="side">
-        <h1>RigPilot</h1>
-        <p class="sub">
-          M2 &middot; pose the body and key it on a timeline. Agent over MCP: M3. IK: M4.
-        </p>
-        <div class="bar">
-          <button id="reset">reset pose</button>
-          <button id="random">random legal pose</button>
-          <button id="wave">3-pose wave</button>
-          <span id="rev" class="rev"></span>
-        </div>
         <div id="panel"></div>
       </aside>
       <main id="stage">
-        <canvas id="view"></canvas>
+        <canvas
+          id="view"
+          aria-label="3D view of the humanoid rig — drag to orbit, click a joint to select it"
+        ></canvas>
+        <div id="views" class="hud views" role="group" aria-label="camera views"></div>
         <div id="info" class="hud"></div>
-        <div id="status" class="hud status"></div>
-        <pre id="report" class="hud report"></pre>
+        <div id="status" class="hud status" role="status" aria-live="polite"></div>
+        <pre id="report" class="hud report" aria-live="polite"></pre>
+        <span id="hover" class="hud hover" aria-hidden="true"></span>
       </main>
       <footer id="dock">
         <div id="timeline"></div>
         <div id="clip"></div>
       </footer>
     </div>
+    <div id="overlay"></div>
+    <div id="toasts" class="toasts" role="status" aria-live="polite"></div>
+    <noscript
+      ><p>
+        RigPilot is a 3D posing and keyframing studio, so it needs JavaScript. Everything else about
+        it — the rig data, the animation file format, the physics rules — is in
+        <a href="https://github.com/AG-TheCoderr/ultimate">the repository</a>.
+      </p></noscript
+    >
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

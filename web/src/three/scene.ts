@@ -76,7 +76,11 @@ export class Studio {
     this.renderer?.render(this.scene, this.camera);
   }
 
-  pick(event: PointerEvent, targets: readonly Mesh[]): Mesh | null {
+  /**
+   * The event only needs to be a point on screen, so the hover raycast in the render loop can pass the
+   * coordinates it stored instead of synthesising a PointerEvent.
+   */
+  pick(event: { clientX: number; clientY: number }, targets: readonly Mesh[]): Mesh | null {
     if (!targets.length) return null;
     const rect = this.canvas.getBoundingClientRect();
     this.ndc.set(
