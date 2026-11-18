@@ -45,6 +45,40 @@ If that rule breaks, the format becomes browser-only and Blender/Unity/CI toolin
 
 ---
 
+## 1.5 The rig: `lab-21` (adopted from your spec, with three corrections)
+
+21 articulating joints + 5 leaf nodes = **26 nodes / 25 bones**, generated and validated by
+`tools/gen-skeleton.py` → `fixtures/skeletons/lab-21.json`. Nothing in the app hard-codes a joint
+name; the rig is data the viewport, the clamp, the BVH writer and the Blender script all read.
+
+Your layout is the right one — clavicle for overhead reach, toe for push-off, two spine joints, hinge
+knees and elbows. It also passed the checks I ran: every bone length matched the position table
+(thigh 0.44, shin 0.44, ankle→toe 0.149, upper arm 0.34, forearm 0.26, hand 0.19), and the
+0.528 leg/height ratio sits inside the 0.51–0.55 anthropometric band. What had to change:
+
+| # | Issue | Fix |
+| --- | --- | --- |
+| 1 | **"X = bend forward/back" is a world-space rule and cannot be global.** It holds for the spine, head and legs (bones pointing ±Y) but a T-pose arm points along ±X, so elbow flexion lives on **Y** and humerus twist on **X**; clavicle *raise* is about **Z**, not the twist column it was listed under. Applying your table literally would dislocate both shoulders and swing the arms into the torso instead of raising them. | every DoF declares `{axis, sign}` per joint in the CRP local frame, authored in the skeleton file. Anatomical labels (flexion/abduction/raise) stay positive, `sign` reconciles them with the axis. Full axis table in [DATA-FORMAT.md](DATA-FORMAT.md#axes-the-part-of-the-table-that-could-not-be-inherited) |
+| 2 | **Head sphere on the head joint.** Head joint = skull base at 1.62; a 0.11 sphere centred there puts the crown at 1.73 on a 1.80 character and makes everyone look 7 cm shorter in the preview — which then feeds back into every "does this look right" judgement. | primitive offset to `[0, 0.09, 0.012]`, r 0.095 with `ellipsoidScale [0.80, 1.0, 1.06]` (a skull is ~4 cm narrower than it is deep) → crown 1.805. Plus a `headEnd` leaf so the skull hangs off a real bone |
+| 3 | **Rigidity vs. the "one larger sphere for the head" phrasing:** spheres are per *joint*, so the sphere must be parented to the joint it visualises, and `head`'s pivot stays at the skull base. | `mesh.jointSpheres.scale = 1.15 × widest cylinder it joins` (your tip 3, made computable) |
+
+Two things I flagged but did **not** change, so you decide:
+
+- **Fingertip span is 1.96 m on a 1.80 m character** (should be ≈ height; the check is
+  `span/height ∈ [0.95, 1.05]`, currently 1.089). Cause: `shoulder` at ±0.19 is the deltoid, the
+  glenohumeral centre is ≈±0.17, plus hand 0.19. Cosmetic in the lab, but the ratio is exactly what a
+  retargeter sanity-checks on an imported rig, and a rig that fails it makes *other* rigs look wrong.
+  One-line fix in the generator if you want it.
+- **`elbow`/`knee` limits start at hard 0.** IK pushing against a hard 0 jitters; real elbows
+  hyperextend ~5°. Added `softMin: -5` / `softMax: 3` as a graze allowance for the solver while the
+  authored clamp stays 0–150, so exported poses remain legal to the engine's limits.
+
+**Why this rig makes the AI half of the project cheaper:** with 21 DoF-constrained joints, a pose is a
+~45-dim vector of clamped scalars, not 26 free quaternions. "Move one joint, everything below follows"
+plus hinge knees/elbows means most random poses are already anatomically legal — which is what your
+summary was getting at, and it is true: it turns Tier B from "generate motion" into "choose good
+numbers in a box", and it makes a *legality* test in CI possible at all.
+
 ## 2. Architecture
 
 One data flow, three input paths, one clip type:
@@ -86,8 +120,11 @@ cache-invalidation bugs.
 - Viewport: pick a joint (raycast against a capsule proxy), drag → arcball rotation of that joint
   about the *camera* plane, converted to a local quaternion in parent space. Straight two-bone IK
   on shift-drag of an end-effector (wrist/ankle) so posing hands and feet is not miserable.
-- Constrained to CRP axes when a joint's `limits` are set (`{min,max}` per axis, optional) — this is
-  what keeps a human from being posed inside-out, and it's also what makes the export engine-safe.
+- Clamped by the rig's `limits`, per DoF `{axis, sign, min, max, softMin, softMax}`, read from
+  `lab-21.json` (§1.5). The inspector shows the *anatomical* value ("flexion 87°") and the clamp runs
+  on the signed value, so a user can never author a pose an engine would reject. Hinges (elbow, knee,
+  toe) expose exactly one slider and no gizmo on the other axes — the UI being unable to express an
+  illegal channel is a stronger guarantee than a warning after the fact.
 - Dopesheet: rows = joints (grouped by chain), columns = frames, key diamonds, drag to move,
   right-click for interpolation. Selecting all keys of a joint + "N" = new key at playhead.
 - **This is the part you described** ("move joints, set keyframes, position"), so it is the first
@@ -176,13 +213,13 @@ leaves a *usable* thing, and so the format is frozen before the two expensive pa
 
 | | Build | Acceptance — the demo that proves it | Days |
 | --- | --- | --- | --- |
-| **M0** | pnpm workspace, Vite app, zod schema + `Clip`/`DenseClip`/bake, three.js empty scene with a stick figure in CRP, CI runs vitest | `pnpm dev` shows a 23-joint figure in T-pose; `Clip.parse(fixture)` round-trips; CI green | 0.5–1 |
-| **M1** | Joint picking + drag-rotate, two-bone IK on end-effectors, joint limits, pose-only (no time) | Pose a human that looks anatomically legal; limits visibly block impossible bends | 2–3 |
+| **M0** | pnpm workspace, Vite app, strict TS, zod schema + `Clip`/`DenseClip`/bake, three.js scene that loads `fixtures/skeletons/lab-21.json` and draws it, CI runs vitest | `pnpm dev` shows the 26-node rig in CRP (25 cylinders + joint spheres + head ellipsoid, crown at 1.80); the skeleton self-validates in CI (tree invariant, L/R mirror rule, bone lengths, span/height band); `Clip.parse(fixture)` round-trips | 0.5–1 |
+| **M1** | Joint picking + drag-rotate, two-bone IK on end-effectors, DoF clamping from `limits`, pose-only (no time) | The three convention tests pass (raise-left-arm / hip-flex / knee-flex); dragging `elbow.L` and `elbow.R` identically mirrors correctly; a random pose generator with clamped DoFs produces no impossible poses in 10k samples | 2–3 |
 | **M2** | Timeline: play/pause/scrub, keyframe create/move/delete, linear/step/bezier, dopesheet, OPFS save/load | Animate a wave cycle by hand, 30 fps smooth, no dropped frames while dragging keys | 2–3 |
 | **M3** | Format I/O: `.anim` + full BVH import/export + unit & up-axis normalisation | BVH→clip→BVH round-trip is within 1e-4 on baked arrays; **a public BVH from the internet plays correctly in our viewport** — that one test kills most format bugs | 2–3 |
 | **M4** | Webcam + video capture: MediaPipe, the §2.2 solver, capture profiles, landmarks sidecar, live preview while recording | Record a 10 s walk → editable clip → it reads as a walk without manual fixes; scrubbing shows per-landmark confidence | 3–4 |
-| **M5** | Processor chain UI (Tier A all of it) + `Processor` interface with auto-generated controls + A/B compare | Foot-lock visibly kills sliding on a captured clip; A/B with the original side-by-side on the same canvas | 3–4 |
-| **M6** | Delivery: GLB export onto a **skinned preview character**, `roles` in `extras`, Blender BVH→FBX script, Unity C# importer | A GLB opens in [gltf.report](https://gltf.report) with named animations; the FBX lands in Unity with working `Animator` clips on a real rigged character | 2–3 |
+| **M5** | Processor chain UI (Tier A all of it) + `Processor` interface with auto-generated controls + A/B compare. Contact states derived from the 6 foot markers (height under threshold + velocity), so `contacts` is an inspectable array in the clip, not a hidden heuristic | Foot-lock visibly kills sliding on a captured clip; the contact graph lines up with heel-strike/toe-off in the viewport; A/B with the original side-by-side on the same canvas | 3–4 |
+| **M6** | Delivery, both GLBs (see §DATA-FORMAT): `lab-preview.glb` (rigid, for the viewport) and a retargeted delivery clip with `roles` in `extras`; Blender BVH→FBX script; Unity C# importer | A GLB opens in [gltf.report](https://gltf.report) with named animations; the FBX lands in Unity with working `Animator` clips on a real rigged character | 2–3 |
 | **M7** | *(optional)* Tier B model in-browser, and/or a Tier C remote service behind the same interface | Same UI, one dropdown change: the noise filter becomes a learned one, and the demo still passes | 5–10 |
 
 **~15–20 days to a genuinely usable lab (M0–M6).** If you want the pitch deck in one week instead:
@@ -211,7 +248,13 @@ convention bug, and conventions are what M3 forces you to write down.
    inference, and a visible fps/dropped-frame readout so the failure is honest. Safari: WASM SIMD
    needs iOS 16.4+ / macOS Safari 16.4+; test on the phone you actually own, and expect to fall back
    to video-file import on older ones.
-7. **Scope creep into "Blender in a browser."** The tie-breaker question for any feature: *does it
+7. **The 21-joint budget is a real ceiling, and it is the right one — but two things it cannot do
+   should be visible in the design, not discovered later.** (a) No twist bones: forearm rotation is
+   authored on `wrist`'s twist DoF (correct for 21 joints; real rigs add `Arm_Twist`, which is why the
+   role enum is extensible rather than fixed-length). (b) No fingers or face, by your call — capture
+   cost is ~3× and the skeleton goes 26 → 60+ nodes, so if that ever changes it changes `lab-21`'s
+   successor, not the format. Both are skeleton-file edits; no milestone depends on them.
+8. **Scope creep into "Blender in a browser."** The tie-breaker question for any feature: *does it
    move motion from a human into an engine clip more reliably?* If not, it's a DCC feature and it
    waits.
 
