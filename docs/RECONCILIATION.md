@@ -124,13 +124,33 @@ be a decision, not drift: **the clip format is where captured data would land.**
 though nothing writes it yet — writing it later means a format migration _and_ a re-capture, which is
 the one cost that is not recoverable. Everything else can be deferred safely.
 
-## 4. Open items for M1 (not ambiguities in VISION — things it does not say)
+## 4. Decisions taken for M1 (VISION is silent; defaults adopted, 2026-11-18)
 
-- Does `set_key_pose` accept a partial joint dict and merge (yes per §9 "merges into existing keys") —
-  but is a _missing_ joint in a key "leave my previous value" or "return to rest"? Those differ, and the
-  first is the sane one for blocking poses. Proposal: leave previous value, i.e. keys are per-joint, and
-  `sample_pose` reports which joints have no keys at that frame.
-- `ease: "auto"` needs a definition. Proposal: Catmull-Rom-derived tangents when a joint has ≥ 3 keys,
-  linear for 2, and `step` never auto.
-- `render_preview` on a 120-frame clip with onion skin is ~512² × 3 PNGs per call; propose a cap of
-  8 frames per call and say so in the description, so the agent batches instead of timing out at 30 s.
+Approved as defaults — if any is wrong it is cheaper to overrule now than after M2 builds on it.
+
+1. **An unmentioned joint in `set_key_pose` keeps its previous value.** Keys are per-joint, not
+   per-frame-snapshot. Consequences: blocking a 4-pose walk means 4 calls × 3–5 joints, not 4 × 21;
+   re-sending a frame merges instead of wiping (VISION §9 "merges into existing keys" only makes sense
+   with this reading); and `sample_pose` reports `unauthored: joint[]` for joints with no key spanning
+   that frame, so the agent can tell "rest pose" from "nobody decided yet". The alternative — absent
+   means return to rest — silently destroys the other 16 joints on every single-axis tweak, which is
+   exactly the mistake an agent makes while iterating.
+2. **`ease: "auto"` is Catmull-Rom-derived tangents with ≥ 3 keys on that channel, linear with
+   exactly 2, and never `step`.** Catmull-Rom needs neighbours on both sides; at a clip end it falls
+   back to linear rather than reflecting (reflection invents motion the animator didn't key). For a
+   `loop: true` clip the wrap provides neighbours on both sides of frame 0, so `auto` is C-R there too
+   — which is what makes §7.3's "velocity continuous across the loop point" achievable without the
+   agent hand-tuning tangents.
+3. **`render_preview` is capped at 8 frames per call, stated in the tool description.** 3 views × 512²
+   PNG per frame, base64 through stdio: at 120 frames that is 360 images and an agent hitting the 30 s
+   timeout for what it thought was one call. Batching is the agent's job only if the limit is in the
+   description it reads; the error for an oversized request must name the cap and the fix
+   ("frames: 8 max per call — sample every Nth frame or split the call").
+
+Also locked from §2: the **delta-over-rest** penetration rule and the **π-yaw export wrapper** stay as
+implemented; the **1.089 span/height** stays authored as VISION wrote it (flagged, not fixed), and
+`foot`/`toe_bone` keep their radii (2–3 cm of rest sink is intentional, matching what games do).
+
+Implementation home for these: `core/src/anim/` (sampling + merge semantics), and their tests are
+`core/test/{keys,interpolation}.test.ts`. They are deliberately *not* flags in the rig JSON: the rig is
+geometry, this is clip behaviour.
