@@ -108,8 +108,18 @@ Pages site connects to `127.0.0.1` — allow it. Safari may block the request ou
 ## Deploy
 
 `deploy.yml` builds `web/` and publishes it to GitHub Pages with `base = /<repo>/` (override with
-`RIGPILOT_BASE`). Settings → Pages must be set to **GitHub Actions**. The site is static: no server, no
-database, nothing to host besides Pages.
+`RIGPILOT_BASE`). Settings → Pages must be set to **GitHub Actions** — not "Deploy from a branch", and not
+Jekyll: the artifact is `web/dist` served verbatim, and a Jekyll step would only add a Ruby build that
+strips anything beginning with `_`. The site is static afterwards: no server, no database, nothing to host
+besides Pages.
+
+**One workflow may deploy this site.** `deploy.yml` owns the `pages` concurrency group and the
+`github-pages` environment, so a second Pages workflow — including the `static.yml` that GitHub offers when
+you tick Pages on — races it: both upload an artifact named `github-pages` and whichever finishes last
+publishes it, while the loser shows up as a red "Deploying Pages site failed 🍰" or a cancelled run. The
+stock `static.yml` also uploads `'.'`, the repository root, which has no `index.html` at all — a push that
+wins that race publishes a 404 over the working site. If Pages was enabled through the GitHub UI and it
+committed a deploy workflow for you, delete it and keep `deploy.yml`.
 
 ## The rig, in one table
 

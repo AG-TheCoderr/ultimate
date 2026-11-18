@@ -10,9 +10,13 @@ permissions:
   pages: write
   id-token: write
 
+# One deployment at a time, and never cut off in flight: a Pages deploy is the live site, and a run that
+# is cancelled mid-publish leaves the previous version serving while its own log reads like a failure.
+# Queued runs are superseded by the newest push, which is the behaviour we want. (The group name is also
+# how a *second* workflow would collide with this one — see the note on the Pages section of the README.)
 concurrency:
   group: pages
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   build:
