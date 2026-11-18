@@ -121,11 +121,6 @@ stock `static.yml` also uploads `'.'`, the repository root, which has no `index.
 wins that race publishes a 404 over the working site. If Pages was enabled through the GitHub UI and it
 committed a deploy workflow for you, delete it and keep `deploy.yml`.
 
-Keep it the **only** Pages workflow. GitHub's "deploy a static site" template does the same job badly here:
-it uploads the repository root, where there is no `index.html` at all, and it joins the same `pages`
-concurrency group, so the two runs cancel each other and which commit the site serves becomes a race. A
-`static.yml` of that shape lived here briefly and was removed for exactly that reason.
-
 ## The rig, in one table
 
 |             |                                                                                                                                                              |
