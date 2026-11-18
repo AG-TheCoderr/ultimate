@@ -12,8 +12,16 @@ Blender and Three.js. Fully usable by a human with no AI in the loop.
 > The contract that makes this work: **when the agent asks for something impossible, the app does not
 > fail.** It clamps to the nearest legal value and reports what it adjusted, so the agent can learn.
 
-**Status: M0 (repo foundation) is in.** `core/` loads and validates the rig, CI is green, the studio
-page builds. M1 (FK + viewer + posing) is next. See [`docs/VISION.md`](docs/VISION.md) §12.
+**Status: M1 is in** — the rig loads, validates, and can be posed by hand in the browser with limits
+enforced. M2 (timeline, keyframes, playback, persistence) is next. Milestones:
+[`docs/VISION.md`](docs/VISION.md) §12.
+
+|           |                                                                                                                                                                                  |
+| --------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| M0 ✅     | workspaces, strict TS, ESLint + Prettier, vitest, CI + Pages deploy, the rig as validated data                                                                                   |
+| M1 ✅     | FK on semantic axes, limit clamping with `adjusted` reports, three.js viewer, click-to-select, per-DoF sliders. All ten of §6's semantic tests now run in `core/` too (32 tests) |
+| M2 ·next· | timeline, keyframes, interpolation + easing, undo/redo, autosave, project file                                                                                                   |
+| M3–M7     | relay + MCP + activity log · IK, contacts, root motion, mirroring · validation + previews · GLB/BVH export · gait generator + WebMCP                                             |
 
 ```
 docs/VISION.md          the spec — direction for every milestone (read this first)
@@ -21,6 +29,7 @@ docs/RECONCILIATION.md  what the spec gets wrong, with fixes applied (VISION rul
 docs/PLAN.md            the earlier plan: rig rationale, milestones, risks
 docs/DATA-FORMAT.md     conventions, BVH/glTF mapping, retargeting math (M6 + future import)
 core/src/rig/humanoid.rig.json   the rig, as data
+core/src/kinematics/             fk.ts (composition order lives here), limits.ts (clamp + graze)
 tools/gen-rig.py · tools/check-rig.py   generates it · 18 checks including §6's ten semantic tests
 ```
 

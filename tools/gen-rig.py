@@ -200,7 +200,11 @@ def build():
             "restPose": "T-pose, identity rest rotation for every joint, palms down, feet flat",
             "offsetSpace": "parent-local, which under the identity rest equals worldRest(child)-worldRest(parent)",
             "dofOrder": ["flex", "side", "twist"],
-            "dofCompose": "local = R(twist) * R(side) * R(flex); each R is about that axis vector by <degrees>",
+            "dofCompose": "local = R(flex) * R(side) * R(twist) -- twist INNERMOST, so it is a roll "
+                          "about the rest bone axis and then gets carried by the swing. The reverse "
+                          "order (twist outermost) rotates about an axis the bone no longer lies on, so "
+                          "a pure humerus roll would drag the elbow through space: twist must never move "
+                          "a joint that sits on the bone axis. core/test/fk.test.ts asserts exactly this.",
             "limits": "relative to the T-pose rest; authored in degrees on semantic axes, never raw quaternions",
             "mirroring": "right-side axes are generated from the left by axis (nx,ny,nz)->(nx,-ny,-nz), angle unchanged",
             "notSameAsGlTF": "glTF is -Z forward: export wraps the rig in a parent node yawed by pi rather than "

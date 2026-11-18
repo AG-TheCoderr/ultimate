@@ -4,7 +4,12 @@
     "noEmit": true,
     "composite": false,
     "types": ["vite/client", "node"],
-    "lib": ["ES2023", "DOM", "DOM.Iterable"]
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
+    "baseUrl": ".",
+    "paths": {
+      "@rigpilot/core": ["../core/src/index.ts"],
+      "@rigpilot/core/*": ["../core/src/*"]
+    }
   },
   "include": ["src", "vite.config.ts"]
 }

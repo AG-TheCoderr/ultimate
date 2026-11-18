@@ -152,5 +152,5 @@ implemented; the **1.089 span/height** stays authored as VISION wrote it (flagge
 `foot`/`toe_bone` keep their radii (2–3 cm of rest sink is intentional, matching what games do).
 
 Implementation home for these: `core/src/anim/` (sampling + merge semantics), and their tests are
-`core/test/{keys,interpolation}.test.ts`. They are deliberately *not* flags in the rig JSON: the rig is
+`core/test/{keys,interpolation}.test.ts`. They are deliberately _not_ flags in the rig JSON: the rig is
 geometry, this is clip behaviour.

@@ -1,54 +1,98 @@
 import { loadHumanoidRig } from "@rigpilot/core";
+import { PoseState } from "./pose.js";
+import { RigView } from "./three/rigView.js";
+import { Studio } from "./three/scene.js";
+import { PosePanel } from "./panels/posePanel.js";
 
 /**
- * M0 placeholder: proves the workspace wiring (core -> web), the Pages `base` path, and the relay
- * URL contract from VISION §8. The Three.js viewer, the grid and the rig geometry land in M1, where
- * `#viewport` gets replaced by a canvas and this file becomes the app bootstrap.
+ * M1: load the rig, draw it, let a human pose it by clicking a joint and moving semantic sliders with
+ * limits applied. No timeline yet (M2), no relay (M3) — but the state object here is already the one
+ * the MCP executor will mutate, so the AI path and the human path share every code path from day one.
  */
-const el = (id: string): HTMLElement => {
-  const node = document.getElementById(id);
-  if (!node) throw new Error(`missing #${id}`);
-  return node;
+const rig = loadHumanoidRig();
+const canvas = mustExist("view") as HTMLCanvasElement;
+const info = mustExist("info");
+const out = mustExist("report");
+
+// Selection is a Set, not an array: shift-click adds a joint and re-adding must not double-highlight.
+let selected: Set<string> = new Set();
+const studio = new Studio(canvas);
+studio.init();
+const view = new RigView(rig);
+studio.scene.add(view.group);
+
+const state = new PoseState(rig);
+const panel = new PosePanel(rig, state, mustExist("panel"), joint => {
+  view.setSelected(joint ? [joint] : []);
+  info.textContent = joint ? `selected ${joint}` : "click a joint sphere or pick from the list";
+});
+
+const apply = (): void => {
+  const solved = state.solve();
+  view.update(solved);
+  panel.sync();
+  const text = panel.report(solved);
+  out.textContent = text;
+  out.classList.toggle("bad", solved.adjustments.length > 0);
+  rev.textContent = `rev ${state.revision}`;
 };
 
-const status = el("status");
-try {
-  const rig = loadHumanoidRig();
-  const articulating = rig.joints.filter(j => j.kind !== "endSite").length;
-  const rows: [string, string][] = [
-    ["rig", `${rig.id} v${rig.version}`],
-    ["joints", `${articulating} articulating + ${rig.joints.length - articulating} end sites`],
-    [
-      "bones",
-      `${rig.bones.length} cylinders, ${Number(rig.stats["hierarchyEdges"])} hierarchy edges`,
-    ],
-    ["contact markers", `${rig.markers.length} (heel, ball, toe tip per foot)`],
-    ["bind height", `${rig.bindHeight} m, crown ${(rig.proportions as { crown: number }).crown} m`],
-    [
-      "conventions",
-      `${rig.conventions.upAxis} up · faces ${rig.conventions.forwardAxis} · left ${rig.conventions.leftAxis}`,
-    ],
-  ];
-  el("riginfo").innerHTML =
-    `<table><tbody>${rows.map(([k, v]) => `<tr><th>${k}</th><td>${v}</td></tr>`).join("")}</tbody></table>` +
-    `<div id="viewport">three.js viewer + floor grid arrive in M1</div>`;
-  status.textContent = "core → web wiring OK · rig validated at load";
-  status.classList.add("ok");
-} catch (err) {
-  status.textContent = `rig failed to load: ${(err as Error).message}`;
-  el("riginfo").innerHTML = `<pre>${String((err as Error).message)}</pre>`;
-  status.classList.add("bad");
-  throw err;
-}
+const unsub = state.subscribe(apply);
 
-// VISION §8: the page reaches the local relay over ws://127.0.0.1:8765 with a pairing token.
-// M3 implements the client; M0 only reads the contract so the URL format is settled and testable.
-const params = new URLSearchParams(location.search);
-const relay = params.get("relay");
-const token = params.get("token") ?? location.hash.slice(1);
-if (relay)
-  console.log(`[relay] would connect to ${relay} (token ${token ? "present" : "missing"})`);
-if (token && !params.has("token")) {
-  // tokens belong in the fragment, which never reaches a server or a log line
-  console.debug("[relay] token read from URL fragment");
+// click to select (and shift-click to add, so a chain can be posed together)
+let dragging = false;
+canvas.addEventListener("pointerdown", () => (dragging = false));
+canvas.addEventListener("pointermove", e => {
+  if (e.buttons) dragging = true;
+});
+canvas.addEventListener("pointerup", e => {
+  if (dragging) return; // an orbit drag is not a selection
+  const hit = studio.pick(e, view.pickables());
+  const joint = hit ? view.jointOf(hit) : null;
+  if (e.shiftKey && joint) {
+    const next = new Set<string>([...selected, joint]);
+    selected = next;
+    view.setSelected(next);
+    info.textContent = `selected ${[...next].join(", ")}`;
+    return;
+  }
+  selected = joint ? new Set([joint]) : new Set();
+  panel.select(joint);
+});
+// A set, not an array: shift-click adds the same joint twice without double-highlighting.
+
+const rev = mustExist("rev");
+mustExist("reset").addEventListener("click", () => state.reset());
+mustExist("random").addEventListener("click", () => state.randomize());
+mustExist("wave").addEventListener("click", () => {
+  // the "can it look human at all" smoke test, in the fewest numbers
+  state.reset();
+  for (const [joint, v] of [
+    ["shoulder_R", { side: -78, flex: 12 }],
+    ["elbow_R", { flex: 35 }],
+    ["clavicle_R", { side: 6 }],
+    ["chest", { side: -4, twist: -6 }],
+    ["head", { side: 6, twist: 8 }],
+    ["hip_L", { flex: 8 }],
+    ["knee_L", { flex: 12 }],
+  ] as const) {
+    for (const [axis, deg] of Object.entries(v))
+      state.set(joint, axis as "flex" | "side" | "twist", deg);
+  }
+});
+
+window.addEventListener("resize", () => studio.resize());
+(function loop() {
+  studio.render();
+  requestAnimationFrame(loop);
+})();
+apply();
+studio.resize();
+
+window.addEventListener("beforeunload", () => void unsub());
+
+function mustExist(id: string): HTMLElement {
+  const n = document.getElementById(id);
+  if (!n) throw new Error(`missing #${id}`);
+  return n;
 }

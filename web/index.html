@@ -7,14 +7,24 @@
     <link rel="stylesheet" href="/src/style.css" />
   </head>
   <body>
-    <div id="app">
-      <header>
+    <div id="shell">
+      <aside id="side">
         <h1>RigPilot</h1>
-        <p id="tagline">browser humanoid studio &middot; MCP-driven &middot; M0 foundation</p>
-        <span id="status" class="badge">viewer: three.js arrives in M1</span>
-      </header>
-      <main>
-        <section id="riginfo" aria-label="rig"></section>
+        <p class="sub">M1 &middot; pose the body by hand. Timeline: M2. Agent over MCP: M3.</p>
+        <div class="bar">
+          <button id="reset">reset</button>
+          <button id="random">random legal pose</button>
+          <button id="wave">wave</button>
+          <span id="rev" class="rev"></span>
+        </div>
+        <div id="panel"></div>
+      </aside>
+      <main id="stage">
+        <canvas id="view"></canvas>
+        <div id="info" class="hud">
+          click a joint sphere (shift-click to add) or pick from the list
+        </div>
+        <pre id="report" class="hud report"></pre>
       </main>
     </div>
     <script type="module" src="/src/main.ts"></script>
