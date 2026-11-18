@@ -1,4 +1,5 @@
 import { AUTOSAVE_KEY, type ProjectStore } from "./store.js";
+import { toast } from "./ui.js";
 
 /**
  * Persistence, §7.6: autosave plus a real file. Two mechanisms because they answer different fears —
@@ -33,6 +34,11 @@ const readSaved = (): Saved | null => {
     return null;
   }
 };
+
+/** When the autosave last wrote, for the "saved 12:04:31" badge. Null means never, not broken. */
+export function lastAutosaveAt(): number | null {
+  return readSaved()?.savedAt ?? null;
+}
 
 /** Load whatever the last session left, if anything. Reports what the file could not honour. */
 export function restoreAutosave(store: ProjectStore): RestoreReport {
@@ -120,4 +126,52 @@ export function pickProjectFile(): Promise<{ name: string; text: string } | null
     document.body.append(input);
     input.click();
   });
+}
+
+/**
+ * Open a project file the friendly way: drag it onto the page. Two reasons this exists next to the file
+ * picker — a person who has a clip on disk expects to drop it, and it is the only way to move a file from
+ * one machine to this one without hunting for a button. Anything that is not JSON is refused out loud.
+ */
+export function attachFileDrop(store: ProjectStore): () => void {
+  // The `dropping` class is what shows the drop target: a dashed outline over the whole page, so the
+  // affordance exists before the file is released rather than only after.
+  const over = (e: DragEvent): void => {
+    if (!e.dataTransfer?.types.includes("Files")) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "copy";
+    document.body.classList.toggle("dropping", e.type !== "dragleave");
+  };
+  const drop = (e: DragEvent): void => {
+    if (!e.dataTransfer?.files.length) return;
+    e.preventDefault();
+    document.body.classList.remove("dropping");
+    const file = e.dataTransfer.files[0]!;
+    const reader = new FileReader();
+    reader.addEventListener("load", () => {
+      const text = typeof reader.result === "string" ? reader.result : "";
+      const res = store.restoreFrom(text);
+      if (!res.ok) {
+        toast(`${file.name} is not a RigPilot project: ${res.error ?? "unreadable"}`, "bad");
+        return;
+      }
+      toast(
+        `opened ${file.name} · ${store.clip.name}, ${store.clip.frameCount} frames` +
+          (res.warnings.length > 0 ? ` — ${res.warnings.join(" · ")}` : ""),
+        res.warnings.length > 0 ? "bad" : "ok",
+      );
+    });
+    reader.addEventListener("error", () => toast(`${file.name}: could not be read`, "bad"));
+    reader.readAsText(file);
+  };
+  const types = ["dragenter", "dragover", "dragleave", "drop"] as const;
+  for (const type of types) document.addEventListener(type, over as EventListener);
+  document.addEventListener("drop", drop as EventListener);
+  return () => {
+    for (const type of types) {
+      document.removeEventListener(type, over as EventListener);
+      document.removeEventListener(type, drop as EventListener);
+    }
+    document.body.classList.remove("dropping");
+  };
 }

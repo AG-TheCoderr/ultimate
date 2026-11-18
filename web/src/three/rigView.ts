@@ -38,6 +38,7 @@ export class RigView {
   private readonly entries: Entry[] = [];
   private readonly byJoint = new Map<string, Mesh[]>();
   private readonly selected = new Set<string>();
+  private hovered: string | null = null;
   private readonly pickableMeshes: Mesh[] = [];
 
   constructor(rig: HumanoidRig) {
@@ -113,13 +114,35 @@ export class RigView {
     const next = new Set(joints);
     for (const name of [...this.selected]) {
       if (next.has(name)) continue;
-      for (const mesh of this.byJoint.get(name) ?? []) this.tint(mesh, 0x000000, 0);
+      const hovering = name === this.hovered;
+      for (const mesh of this.byJoint.get(name) ?? [])
+        this.tint(mesh, hovering ? 0x1a3a5c : 0x000000, hovering ? 0.35 : 0);
       this.selected.delete(name);
     }
     for (const name of next) {
       if (this.selected.has(name)) continue;
       for (const mesh of this.byJoint.get(name) ?? []) this.tint(mesh, 0x2f6bff, 0.6);
       this.selected.add(name);
+    }
+  }
+
+  /**
+   * Hover feedback, separate from selection so the two never fight over the same channel: a hovered mesh
+   * gets a faint emissive, a selected one keeps its stronger blue. This exists because "the body is
+   * clickable" is not guessable from a static render — a pointer that changes colour when it arrives over
+   * a joint is what tells a first-timer they can pose the arm by grabbing it.
+   */
+  setHover(joint: string | null): void {
+    if (joint === this.hovered) return;
+    const clear = this.hovered;
+    this.hovered = joint;
+    for (const name of [clear, joint]) {
+      if (!name) continue;
+      const on = name === joint;
+      for (const mesh of this.byJoint.get(name) ?? []) {
+        if (this.selected.has(name)) continue; // selection wins
+        this.tint(mesh, on ? 0x1a3a5c : 0x000000, on ? 0.35 : 0);
+      }
     }
   }
 

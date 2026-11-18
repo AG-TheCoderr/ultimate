@@ -54,14 +54,50 @@ npm run rig          # regenerate + re-verify the rig; CI asserts the committed 
 npm run dev          # vite on 0.0.0.0:5173
 ```
 
-Keyboard: space plays/pauses, ← / → step a frame, shift+← / shift+→ jump to the previous/next keyed
-frame, `K` keys the current pose, ctrl+z / ctrl+shift+z undo and redo. A joint the clip has keyed is
-driven by the timeline (editing it writes a key at the current frame, as in every DCC); a joint nobody
-has keyed still edits the free pose, and both survive a reload through the autosave.
+Press **▶ Wave demo** (or `P`) — that is the whole M2 loop in one click: three poses get keyed across the
+clip, it plays, and reloading the page brings back the clip, the playhead, the selection and the un-keyed
+scratch values. `Save .json` writes a `<clip name>.rigpilot.json` you can diff, commit, or hand to an
+agent; `Open…` or **dragging the file onto the page** reads it back.
 
-The quickest look at the whole M2 loop: press **3-pose wave**, watch it play, reload the page — the clip,
-the playhead, the selection and the un-keyed scratch values all come back. `save .json` writes a
-`<clip name>.rigpilot.json` you can diff, commit, or hand to an agent.
+First visit opens a three-step guide; `?` brings it back.
+
+| key                       | what it does                                        |
+| ------------------------- | --------------------------------------------------- |
+| `Space`                   | play / pause                                        |
+| `←` `→`                   | one frame (`Home` / `End` jump to the ends)         |
+| `Shift+←/→`               | previous / next keyed frame                         |
+| `K`                       | key the pose on screen at this frame                |
+| `Shift+K`, `Del`          | delete this frame's keys (selection, else all)      |
+| `R`                       | random legal pose — every joint inside its limits   |
+| `P`                       | the 3-pose wave demo                                |
+| `Ctrl+Z` / `Ctrl+Shift+Z` | undo / redo                                         |
+| `Esc`                     | deselect (and close the help, and leave a text box) |
+| `?` / `F1`                | the guide                                           |
+
+### What a person sees, and why it is shaped that way
+
+- **Human names in the list, rig names beside them.** The picker says "Left elbow" and the `<code>` tag in
+  its header says `elbow_L`, because `elbow_L.flex` is what an MCP call sends and what the project file
+  stores. The translation lives in `web/src/labels.ts` — one table, derived from the rig's own
+  `role`/`name`, and `web/test/labels.test.ts` fails if a joint ever ends up labelled with its raw id.
+- **Sliders whose ends are the limits, plus a number box that is not.** Dragging cannot ask for an
+  impossible pose (§6). Typing `400` into the box can, on purpose: that is how a human sees the same
+  `adjusted[]` report an agent gets.
+- **The auto-key rule is written where it bites.** The selected joint's block says "keyed at frame 12 —
+  moving a slider writes a key here" or "not keyed yet — your changes stay a scratch pose until you key
+  it". Without that line, editing a keyed pose and editing an unkeyed one look identical.
+- **Presets, not a blank body.** Six starter poses (T-pose, wave, athletic ready, thinking, reach, both
+  arms up) apply through the same door as a slider, so a preset cannot mean something different from a
+  hand-move. They are data in `labels.ts`, and the test asserts every angle is inside the authored limits
+  so clicking one can never produce a correction.
+- **Hover tells you the body is clickable.** One raycast per frame at most (resolved in the render loop,
+  not in `pointermove`), a faint emissive ring, and the joint's name at the cursor. Selection is blue, a
+  flash of green means "this edit moved those joints" — the same hook M3's tool calls will use.
+- **A key can be retimed by dragging its diamond**, and the whole frame moves together as one undo step:
+  a pose blocked on the wrong frame is the most common fix after blocking a clip.
+- **Everything refuses out loud.** An edit that wrote nothing says why, in a toast and in the activity log;
+  the ruler says "no keys yet — pose the body, then press ◆ key pose"; a page with no JavaScript and a
+  build with no rig file both say what is wrong instead of showing a black rectangle.
 
 ## Run the relay + connect an agent (M3 onward)
 
@@ -70,8 +106,9 @@ npm run build -w relay
 RIGPILOT_TOKEN=change-me node relay/dist/index.js      # ws://127.0.0.1:8765, loopback only
 ```
 
-Then open the page, click **Connect**, or pass the URL params
-(`?relay=ws://127.0.0.1:8765&token=change-me`). `get_connect_link` returns the same URL once M3 lands.
+Then open the page and pass the URL params (`?relay=ws://127.0.0.1:8765&token=change-me`) — M3 adds the
+**Connect** affordance next to the "agent: not connected" badge in the top bar, and `get_connect_link`
+returns the same URL. Until M3 the relay is a stub and the badge is deliberately honest about that.
 
 Claude Code:
 

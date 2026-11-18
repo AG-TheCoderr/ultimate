@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { loadHumanoidRig, type AxisName } from "@rigpilot/core";
+import { POSE_PRESETS } from "../src/labels.js";
 import { ProjectStore } from "../src/store.js";
 
 /**
@@ -174,5 +175,132 @@ describe("ProjectStore", () => {
     s.play();
     s.tick(0.08);
     expect(s.frame).toBe(1); // and a loop rolls over instead of stopping
+  });
+});
+
+describe("the friendly door (presets, wave demo, retiming)", () => {
+  it("the Wave demo keys three poses in ONE undo step and starts playing", () => {
+    const s = store();
+    expect(s.setSettings({ name: "wave", fps: 30, frameCount: 30, loop: true }).warnings).toEqual(
+      [],
+    );
+    const before = s.clip.revision;
+    const report = s.waveDemo();
+    // the demo's own numbers must never need clamping, or the button would be teaching people that
+    // RigPilot silently rewrites what they asked for
+    expect(report.warnings).toEqual([]);
+    expect(report.adjustments).toEqual([]);
+    expect(s.clip.revision).toBe(before + 1);
+    // one step, not three: an undo has to mean "the thing I just did"
+    expect(s.historyLabels.filter(h => h.label === "3-pose wave demo")).toHaveLength(1);
+    expect(s.historyLabels.map(h => h.label)).toEqual([
+      "open clip",
+      "clip settings",
+      "3-pose wave demo",
+    ]);
+    expect(s.playing).toBe(true);
+    expect(s.frame).toBe(0);
+    const keyed = Object.entries(s.clip.jointKeys).flatMap(([joint, track]) =>
+      (track ?? []).map(k => `${joint}@${k.frame}`),
+    );
+    expect(keyed.length).toBeGreaterThanOrEqual(12);
+    expect(new Set(keyed.map(k => Number(k.split("@")[1]))).size).toBe(3);
+    for (let f = 0; f < 30; f++) {
+      const sample = s.sample(f);
+      expect(sample.solved.adjustments).toEqual([]);
+      for (const v of Object.values(sample.pose.joints ?? {})) {
+        for (const deg of Object.values(v)) expect(Number.isFinite(deg)).toBe(true);
+      }
+    }
+    s.undo();
+    expect(Object.keys(s.clip.jointKeys)).toHaveLength(0);
+  });
+
+  it("retiming a frame moves every channel on it, as one step", () => {
+    const s = store();
+    expect(s.setSettings({ frameCount: 24, fps: 24 }).warnings).toEqual([]);
+    s.setAxis("shoulder_R", "side", -40);
+    s.setAxis("elbow_R", "flex", 50);
+    s.keyJoint("shoulder_R");
+    s.keyJoint("elbow_R");
+    s.setFrame(10);
+    s.setAxis("shoulder_R", "side", -90);
+    s.keyJoint("shoulder_R");
+    const track = () => (s.clip.jointKeys["shoulder_R"] ?? []).map(k => k.frame);
+    expect(track()).toEqual([0, 10]);
+
+    const report = s.retimeKey(10, 14);
+    expect(report.warnings).toEqual([]);
+    expect(track()).toEqual([0, 14]);
+    // the whole frame moves together, so a pose never splits across two frames
+    expect((s.clip.jointKeys["elbow_R"] ?? []).map(k => k.frame)).toEqual([0]);
+    const at14 = s.clip.jointKeys["shoulder_R"]?.[1];
+    expect(at14?.value.side).toBe(-90);
+    s.undo();
+    expect(track()).toEqual([0, 10]);
+  });
+
+  it("refuses to invent an undo step for a retime that changed nothing", () => {
+    const s = store();
+    const steps = s.historyLabels.length;
+    expect(s.retimeKey(3, 9).warnings).toContain("frame 3 has no keys to move");
+    expect(s.historyLabels).toHaveLength(steps);
+    expect(s.revision).toBe(0);
+
+    s.setAxis("knee_L", "flex", 40);
+    s.keyJoint("knee_L");
+    expect(s.retimeKey(0, 0).warnings).toEqual(["frame 0 is already there"]);
+    expect(s.historyLabels).toHaveLength(steps + 1);
+  });
+
+  it("clamps a retime dragged off the end instead of dropping the key", () => {
+    const s = store();
+    expect(s.setSettings({ frameCount: 10 }).warnings).toEqual([]);
+    s.setAxis("neck", "flex", 20);
+    s.keyJoint("neck");
+    expect(s.retimeKey(0, 999).warnings).toEqual([]);
+    expect((s.clip.jointKeys["neck"] ?? []).map(k => k.frame)).toEqual([9]);
+  });
+
+  it("a preset on a keyed joint writes a key, and on an unkeyed joint does not", () => {
+    const s = store();
+    expect(s.setSettings({ frameCount: 12 }).warnings).toEqual([]);
+    // head is unkeyed, neck is keyed: the two halves of the auto-key rule in one call
+    s.setAxis("neck", "flex", 10);
+    s.keyJoint("neck");
+    const notes = s.poseFrom({ neck: { flex: -12 }, head: { twist: 20 } });
+    expect(notes).toEqual([]);
+    expect((s.clip.jointKeys["neck"] ?? []).map(k => k.value.flex)).toEqual([-12]);
+    expect(s.clip.jointKeys["head"]).toBeUndefined();
+    expect(s.sample(0).pose.joints?.head?.twist).toBe(20);
+    expect(s.sample(11).pose.joints?.head?.twist).toBe(20); // scratch holds, it is not animated
+  });
+});
+
+describe("presets through the same door as a slider", () => {
+  it("the rest pose clears the scratch values instead of doing nothing", () => {
+    const s = store();
+    s.setAxis("neck", "flex", 20);
+    expect(s.sample(0).pose.joints?.neck?.flex).toBe(20);
+    const rest = POSE_PRESETS.find(p => p.id === "stand")!;
+    expect(Object.keys(rest.joints)).toHaveLength(0);
+    expect(s.applyPreset(rest)).toEqual([]);
+    expect(s.sample(0).pose.joints?.neck?.flex ?? 0).toBe(0);
+  });
+
+  it("a real preset moves the body and never invents a key", () => {
+    const s = store();
+    expect(s.setSettings({ frameCount: 12 }).warnings).toEqual([]);
+    const cheer = POSE_PRESETS.find(p => p.id === "cheer")!;
+    expect(s.applyPreset(cheer)).toEqual([]);
+    expect(s.clip.jointKeys).toEqual({}); // an unowned joint stays a pose, not a key
+    expect(s.sample(0).pose.joints?.shoulder_L?.side).toBe(62);
+    expect(s.sample(11).pose.joints?.shoulder_L?.side).toBe(62); // holds, because nothing is animated
+    // key it once, and the next preset edit lands on a key like any other edit would
+    s.keyPose(["shoulder_L"]);
+    expect((s.clip.jointKeys["shoulder_L"] ?? []).map(k => k.frame)).toEqual([0]);
+    s.setFrame(6);
+    expect(s.applyPreset(POSE_PRESETS.find(p => p.id === "reach")!)).toEqual([]);
+    expect((s.clip.jointKeys["shoulder_L"] ?? []).map(k => k.frame)).toEqual([0, 6]);
   });
 });

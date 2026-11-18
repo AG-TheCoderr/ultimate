@@ -10,14 +10,17 @@ import {
   setClipSettings,
   setEase,
   setKeyPose,
+  type AxisAdjustment,
   type AxisName,
   type Clip,
+  type EaseMode,
   type ClipSample,
   type ClipHistory,
   type EditReport,
   type HumanoidRig,
   type SemanticValues,
 } from "@rigpilot/core";
+import { waveBeats, type PosePreset } from "./labels.js";
 
 /**
  * The one mutable object in the studio: the clip, its history, the playhead, the selection.
@@ -50,6 +53,13 @@ export class ProjectStore {
   private selection: string[] = [];
   /** Un-keyed scratch values, edited by the sliders for joints the clip does not own. */
   readonly values = new Map<string, Map<AxisName, number>>();
+  /**
+   * The joints the last mutation moved, with a stamp so a viewer can flash them once. M3 needs this for
+   * "the viewer highlights what the agent changed" (§12), and it is cheaper to maintain here than to have
+   * every caller thread a joint list through its own callback.
+   */
+  lastTouched: readonly string[] = [];
+  touchStamp = 0;
 
   constructor(readonly rig: HumanoidRig) {
     this.history = createHistory(emptyClip({ name: "untitled", fps: 30, frameCount: 60 }));
@@ -204,6 +214,110 @@ export class ProjectStore {
   }
 
   /**
+   * One starter pose, applied through the same door as a slider so a preset cannot mean something
+   * different from a hand-move: a joint the clip already owns gets a key here, an unowned joint gets the
+   * scratch value. Returns the notes worth showing, which for an in-range preset is nothing.
+   */
+  poseFrom(pose: Readonly<Record<string, SemanticValues>>): readonly string[] {
+    const notes: string[] = [];
+    for (const [joint, axes] of Object.entries(pose)) {
+      for (const [axis, deg] of Object.entries(axes ?? {})) {
+        notes.push(...this.setAxis(joint, axis as AxisName, Number(deg)));
+      }
+    }
+    this.touch(Object.keys(pose));
+    return notes;
+  }
+
+  /**
+   * M2's acceptance criterion as a button: three key poses across the clip, then play. One undo step,
+   * because three separate `keyPose` calls would leave the user three Ctrl+Zs away from where they
+   * started and "undo" would stop meaning "the thing I just did".
+   */
+  waveDemo(): EditReport {
+    const beats = waveBeats(this.clip.frameCount);
+    // scratch values first, so the joints the demo does not touch keep still between the poses instead of
+    // interpolating back through the rest pose
+    const notes: string[] = [];
+    for (const beat of beats) {
+      this.setFrame(beat.frame);
+      for (const [joint, axes] of Object.entries(beat.joints)) {
+        for (const [axis, deg] of Object.entries(axes)) {
+          notes.push(...this.setAxis(joint, axis as AxisName, deg));
+        }
+      }
+    }
+    const report = this.applyEdit("3-pose wave demo", clip => {
+      let next = clip;
+      const adjustments: AxisAdjustment[] = [];
+      const warnings: string[] = [];
+      const changed: string[] = [];
+      for (const beat of beats) {
+        const step = setKeyPose(this.rig, next, { frame: beat.frame, joints: beat.joints });
+        next = step.clip;
+        adjustments.push(...step.report.adjustments);
+        warnings.push(...step.report.warnings);
+        changed.push(...step.report.changed);
+      }
+      return { clip: next, report: { adjustments, warnings, changed } };
+    });
+    this.touch(beats.flatMap(b => Object.keys(b.joints)));
+    this.setFrame(beats[0]?.frame ?? 0);
+    this.play();
+    return { ...report, warnings: [...notes, ...report.warnings] };
+  }
+
+  /**
+   * Move every key on one frame to another frame — retiming a pose, which is the most common fix after
+   * blocking a clip. One step: "delete then re-add" as two history entries would mean an undo that
+   * half-retimes a frame, and a marker dragged onto its own column would vanish.
+   */
+  retimeKey(from: number, to: number): EditReport {
+    const clip = this.clip;
+    const here = Math.round(from);
+    const last = lastFrame(clip);
+    const target = Math.min(Math.max(Math.round(to), 0), last);
+    const joints: Record<string, SemanticValues> = {};
+    let ease: EaseMode | undefined;
+    for (const [joint, track] of Object.entries(clip.jointKeys)) {
+      const key = (track ?? []).find(k => k.frame === here);
+      if (key) {
+        joints[joint] = key.value;
+        ease = key.ease;
+      }
+    }
+    const rootKey = clip.rootKeys.find(k => k.frame === here);
+    if (Object.keys(joints).length === 0 && !rootKey) {
+      // no edit, so nothing is logged and no undo step is invented for a click that changed nothing
+      return { adjustments: [], warnings: [`frame ${here} has no keys to move`], changed: [] };
+    }
+    if (target === here) {
+      return { adjustments: [], warnings: [`frame ${here} is already there`], changed: [] };
+    }
+    this.touch(Object.keys(joints));
+    return this.applyEdit(`retime keys ${here} → ${target}`, current => {
+      const removed = deleteKeys(current, { frame: here });
+      const asked = Object.keys(joints).length > 0 ? { joints } : {};
+      const written = setKeyPose(this.rig, removed.clip, {
+        frame: target,
+        ...asked,
+        ...(rootKey ? { root: rootKey.value } : {}),
+        ...(ease ? { ease } : {}),
+      });
+      return {
+        clip: written.clip,
+        report: {
+          adjustments: written.report.adjustments,
+          warnings: [...removed.report.warnings, ...written.report.warnings],
+          changed: [
+            `moved ${Object.keys(joints).length || 1} channel(s) from ${here} to ${target}`,
+          ],
+        },
+      };
+    });
+  }
+
+  /**
    * Stamp the pose on screen onto a key at the current frame. §11's workflow — "block key poses first,
    * then refine" — is this call with a joint list; the button uses it with no argument, which means
    * "whatever I have selected, or everything I have moved".
@@ -249,6 +363,7 @@ export class ProjectStore {
     const report = this.applyEdit(`key ${Object.keys(toKey).join(", ")} @ ${frame}`, clip =>
       setKeyPose(this.rig, clip, { frame, joints: toKey }),
     );
+    this.touch(Object.keys(toKey));
     if (skipped.length === 0) return report;
     // EditReport is readonly by contract (it is handed to an agent as-is), so extend a copy
     return {
@@ -274,6 +389,27 @@ export class ProjectStore {
 
   unkeyPose(): EditReport {
     return this.unkeyAt(this.frame);
+  }
+
+  /**
+   * A starter pose from the panel's chip row. An empty pose means "back to rest" — clearing the body, not
+   * applying nothing — which is the difference between a preset button and a no-op, and the reason it is
+   * here in the door rather than in the click handler.
+   */
+  applyPreset(preset: PosePreset): readonly string[] {
+    if (Object.keys(preset.joints).length === 0) {
+      const touched = this.rig.joints.filter(j => this.values.has(j.name)).map(j => j.name);
+      this.resetPose();
+      this.touch(touched);
+      return [];
+    }
+    return this.poseFrom(preset.joints);
+  }
+
+  /** Tell the viewer which joints this edit moved. */
+  private touch(joints: readonly string[]): void {
+    this.lastTouched = [...new Set(joints)];
+    this.touchStamp++;
   }
 
   resetPose(): void {
