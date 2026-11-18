@@ -2,7 +2,7 @@
 
 A browser lab for creating **human motion** — and getting it out as animation a game can actually use.
 
-You move joints on a rig, or record yourself on a webcam, and the lab turns that into editable,
+You move joints on a 21-joint rig, or record yourself on a webcam, and the lab turns that into editable,
 keyframed clips. Clips are stored in an open JSON format, interop through **BVH**, and ship as
 **GLB/glTF** (or FBX via Blender) for Unity/Unreal. An assist layer — procedural first, models
 later — cleans jitter, locks feet, fills in-betweens, and retargets onto your game skeleton.
@@ -39,4 +39,10 @@ automatic stages get wrong.
 | File | What's in it |
 | --- | --- |
 | [`docs/PLAN.md`](docs/PLAN.md) | Stack, architecture, the AI layer and its tiers, milestones M0–M7, risks, open questions |
-| [`docs/DATA-FORMAT.md`](docs/DATA-FORMAT.md) | `motionlab.anim` spec, coordinate conventions, BVH + glTF mapping, retargeting math |
+| [`docs/DATA-FORMAT.md`](docs/DATA-FORMAT.md) | `motionlab.anim` spec, coordinate conventions, the `lab-21` rig, BVH + glTF mapping, retargeting math |
+| [`fixtures/skeletons/lab-21.json`](fixtures/skeletons/lab-21.json) | the canonical rig as data: 26 nodes, 25 bones, joint offsets, per-DoF limits, 6 foot contact markers |
+| [`tools/gen-skeleton.py`](tools/gen-skeleton.py) | generates and validates that file (tree invariant, mirror rule, bone lengths, proportion bands) |
+
+```bash
+python3 tools/gen-skeleton.py   # regenerate + re-validate the rig
+```
