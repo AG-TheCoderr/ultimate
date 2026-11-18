@@ -1,0 +1,16 @@
+{
+  "name": "@rigpilot/relay",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Local MCP stdio server + WebSocket bridge to the open studio page (M3)",
+  "main": "./dist/index.js",
+  "bin": {
+    "rigpilot-relay": "./dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc -b",
+    "start": "node dist/index.js",
+    "typecheck": "tsc -b --force"
+  }
+}

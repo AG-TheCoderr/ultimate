@@ -1,0 +1,1877 @@
+{
+ "id": "humanoid-21",
+ "version": 1,
+ "schema": "rigpilot.rig@1",
+ "conventions": {
+  "unit": "m",
+  "upAxis": "+Y",
+  "forwardAxis": "+Z",
+  "leftAxis": "+X",
+  "handedness": "right-handed",
+  "floor": "Y = 0",
+  "restPose": "T-pose, identity rest rotation for every joint, palms down, feet flat",
+  "offsetSpace": "parent-local, which under the identity rest equals worldRest(child)-worldRest(parent)",
+  "dofOrder": [
+   "flex",
+   "side",
+   "twist"
+  ],
+  "dofCompose": "local = R(twist) * R(side) * R(flex); each R is about that axis vector by <degrees>",
+  "limits": "relative to the T-pose rest; authored in degrees on semantic axes, never raw quaternions",
+  "mirroring": "right-side axes are generated from the left by axis (nx,ny,nz)->(nx,-ny,-nz), angle unchanged",
+  "notSameAsGlTF": "glTF is -Z forward: export wraps the rig in a parent node yawed by pi rather than rewriting every root key, so the exported root track stays numerically equal (VISION \u00a74 says 'same as glTF' \u2014 that parenthetical is wrong, see docs/RECONCILIATION.md)"
+ },
+ "root": {
+  "joint": "hips",
+  "restPosition": [
+   0.0,
+   0.98,
+   0.0
+  ],
+  "degreesOfFreedom": "position xyz + heading + tilt{flex,side}",
+  "note": "the root's height lives HERE, not in an offset: parent is null, so FK starts from rootKeys.position. VISION \u00a75.1 lists hips at y=0.98 \u2014 that number has to be stored somewhere or get_rig cannot return it and the rest pose cannot be rebuilt."
+ },
+ "stats": {
+  "nodes": 26,
+  "articulatingJoints": 21,
+  "endSites": 5,
+  "bones": 22,
+  "contactMarkers": 6,
+  "hierarchyEdges": 25,
+  "bonesSinkingAtRest": [
+   "foot_L",
+   "foot_R",
+   "toe_bone_L",
+   "toe_bone_R"
+  ],
+  "note": "25 hierarchy edges, 22 cylinders: chest->clavicle_{L,R} and head->head_end have no drawn bone (the clavicle sits inside upper_chest, the skull is one sphere)"
+ },
+ "bindHeight": 1.8,
+ "proportions": {
+  "height": 1.8,
+  "span": 1.96,
+  "spanOverHeight": 1.089,
+  "legLength": 0.95,
+  "armLength": 0.79,
+  "crown": 1.8,
+  "band": {
+   "spanOverHeight": [
+    0.95,
+    1.05
+   ],
+   "legOverHeight": [
+    0.51,
+    0.55
+   ]
+  },
+  "warning": "span/height 1.089 is outside the band: fingertip span 1.96 m on a 1.80 m character. shoulder_* at \u00b10.19 is the deltoid, the glenohumeral centre is \u2248\u00b10.17. Cosmetic in the viewer, but this ratio is what a retargeter sanity-checks on an imported rig."
+ },
+ "mesh": {
+  "head": {
+   "parent": "head",
+   "type": "sphere",
+   "radius": 0.1,
+   "offset": [
+    0,
+    0.08,
+    0.02
+   ],
+   "ellipsoidScale": [
+    0.8,
+    1.0,
+    1.06
+   ],
+   "crown": 1.8,
+   "note": "VISION says r 0.11 at y 1.71, which crowns at 1.82 on a 1.80 rig; 0.10 at 1.70 lands exactly on bindHeight. ellipsoidScale flattens X and lengthens Z because a skull is ~4 cm narrower than it is deep (half-extents 0.08 wide / 0.106 deep)."
+  },
+  "torso": {
+   "type": "box",
+   "from": "hips",
+   "to": "chest",
+   "halfSize": [
+    0.14,
+    0.16,
+    0.1
+   ],
+   "note": "covers the boneless chest->clavicle edges so the girdle does not float"
+  },
+  "jointSpheres": {
+   "scale": 1.1,
+   "note": "radius = 1.1x the widest cylinder the joint joins, so bending never opens a gap"
+  },
+  "colors": {
+   "left": [
+    0.3,
+    0.55,
+    0.95
+   ],
+   "right": [
+    0.95,
+    0.42,
+    0.32
+   ],
+   "center": [
+    0.8,
+    0.82,
+    0.86
+   ],
+   "bone": [
+    0.62,
+    0.65,
+    0.7
+   ],
+   "floor": [
+    0.1,
+    0.11,
+    0.13
+   ],
+   "note": "left blue / right red so a preview image tells a mirror bug apart at a glance"
+  },
+  "attach": "one rigid primitive per bone, each vertex 100% weighted to a single joint (VISION \u00a7M6). This is the studio body; a game's own skinned mesh consumes the exported animation, it is not something we skin here."
+ },
+ "joints": [
+  {
+   "name": "hips",
+   "role": "hips",
+   "parent": null,
+   "kind": "root",
+   "offset": [
+    0.0,
+    0.0,
+    0.0
+   ],
+   "restPosition": [
+    0,
+    0.98,
+    0
+   ],
+   "axes": [],
+   "radius": 0.132,
+   "color": "center",
+   "effector": null
+  },
+  {
+   "name": "spine",
+   "role": "spine",
+   "parent": "hips",
+   "kind": "joint",
+   "offset": [
+    0,
+    0.12,
+    0
+   ],
+   "restPosition": [
+    0,
+    1.1,
+    0
+   ],
+   "axes": [
+    {
+     "name": "flex",
+     "axis": [
+      1,
+      0,
+      0
+     ],
+     "min": -15,
+     "max": 30,
+     "graze": [
+      5,
+      5
+     ],
+     "positiveMeans": "bend forward, chest toward +Z"
+    },
+    {
+     "name": "side",
+     "axis": [
+      0,
+      0,
+      -1
+     ],
+     "min": -15,
+     "max": 15,
+     "graze": [
+      5,
+      5
+     ],
+     "positiveMeans": "bend toward the character's left"
+    },
+    {
+     "name": "twist",
+     "axis": [
+      0,
+      1,
+      0
+     ],
+     "min": -20,
+     "max": 20,
+     "graze": [
+      5,
+      5
+     ],
+     "positiveMeans": "turn the front toward the left"
+    }
+   ],
+   "radius": 0.143,
+   "color": "center",
+   "effector": null
+  },
+  {
+   "name": "chest",
+   "role": "chest",
+   "parent": "spine",
+   "kind": "joint",
+   "offset": [
+    0,
+    0.2,
+    0
+   ],
+   "restPosition": [
+    0,
+    1.3,
+    0
+   ],
+   "axes": [
+    {
+     "name": "flex",
+     "axis": [
+      1,
+      0,
+      0
+     ],
+     "min": -15,
+     "max": 30,
+     "graze": [
+      5,
+      5
+     ],
+     "positiveMeans": "bend forward"
+    },
+    {
+     "name": "side",
+     "axis": [
+      0,
+      0,
+      -1
+     ],
+     "min": -15,
+     "max": 15,
+     "graze": [
+      5,
+      5
+     ],
+     "positiveMeans": "bend toward the left"
+    },
+    {
+     "name": "twist",
+     "axis": [
+      0,
+      1,
+      0
+     ],
+     "min": -20,
+     "max": 20,
+     "graze": [
+      5,
+      5
+     ],
+     "positiveMeans": "turn the front toward the left"
+    }
+   ],
+   "radius": 0.143,
+   "color": "center",
+   "effector": null
+  },
+  {
+   "name": "neck",
+   "role": "neck",
+   "parent": "chest",
+   "kind": "joint",
+   "offset": [
+    0,
+    0.2,
+    0
+   ],
+   "restPosition": [
+    0,
+    1.5,
+    0
+   ],
+   "axes": [
+    {
+     "name": "flex",
+     "axis": [
+      1,
+      0,
+      0
+     ],
+     "min": -35,
+     "max": 40,
+     "graze": [
+      8,
+      8
+     ],
+     "positiveMeans": "chin toward chest"
+    },
+    {
+     "name": "side",
+     "axis": [
+      0,
+      0,
+      -1
+     ],
+     "min": -30,
+     "max": 30,
+     "graze": [
+      8,
+      8
+     ],
+     "positiveMeans": "ear toward left shoulder"
+    },
+    {
+     "name": "twist",
+     "axis": [
+      0,
+      1,
+      0
+     ],
+     "min": -40,
+     "max": 40,
+     "graze": [
+      10,
+      10
+     ],
+     "positiveMeans": "look left"
+    }
+   ],
+   "radius": 0.132,
+   "color": "center",
+   "effector": null
+  },
+  {
+   "name": "head",
+   "role": "head",
+   "parent": "neck",
+   "kind": "joint",
+   "offset": [
+    0,
+    0.12,
+    0
+   ],
+   "restPosition": [
+    0,
+    1.62,
+    0
+   ],
+   "axes": [
+    {
+     "name": "flex",
+     "axis": [
+      1,
+      0,
+      0
+     ],
+     "min": -35,
+     "max": 40,
+     "graze": [
+      8,
+      8
+     ],
+     "positiveMeans": "look up is NEGATIVE here: + = chin tuck"
+    },
+    {
+     "name": "side",
+     "axis": [
+      0,
+      0,
+      -1
+     ],
+     "min": -30,
+     "max": 30,
+     "graze": [
+      8,
+      8
+     ],
+     "positiveMeans": "tilt left"
+    },
+    {
+     "name": "twist",
+     "axis": [
+      0,
+      1,
+      0
+     ],
+     "min": -40,
+     "max": 40,
+     "graze": [
+      10,
+      10
+     ],
+     "positiveMeans": "look left"
+    }
+   ],
+   "radius": 0.055,
+   "color": "center",
+   "effector": "head"
+  },
+  {
+   "name": "clavicle_L",
+   "role": "leftShoulder",
+   "parent": "chest",
+   "kind": "joint",
+   "offset": [
+    0.03,
+    0.15,
+    0
+   ],
+   "restPosition": [
+    0.03,
+    1.45,
+    0
+   ],
+   "axes": [
+    {
+     "name": "flex",
+     "axis": [
+      0,
+      -1,
+      0
+     ],
+     "min": -20,
+     "max": 20,
+     "graze": [
+      5,
+      5
+     ],
+     "positiveMeans": "shoulder girdle forward (protract)"
+    },
+    {
+     "name": "side",
+     "axis": [
+      0,
+      0,
+      1
+     ],
+     "min": -10,
+     "max": 35,
+     "graze": [
+      2,
+      5
+     ],
+     "positiveMeans": "shrug up; needed for overhead reach"
+    }
+   ],
+   "radius": 0.0385,
+   "color": "left",
+   "effector": null
+  },
+  {
+   "name": "shoulder_L",
+   "role": "leftArm",
+   "parent": "clavicle_L",
+   "kind": "joint",
+   "offset": [
+    0.16,
+    0.02,
+    0
+   ],
+   "restPosition": [
+    0.19,
+    1.47,
+    0
+   ],
+   "axes": [
+    {
+     "name": "flex",
+     "axis": [
+      0,
+      -1,
+      0
+     ],
+     "min": -60,
+     "max": 130,
+     "graze": [
+      8,
+      8
+     ],
+     "positiveMeans": "swing the arm forward in the transverse plane"
+    },
+    {
+     "name": "side",
+     "axis": [
+      0,
+      0,
+      1
+     ],
+     "min": -100,
+     "max": 80,
+     "graze": [
+      5,
+      10
+     ],
+     "positiveMeans": "raise away from the body; -90 hangs at the side"
+    },
+    {
+     "name": "twist",
+     "axis": [
+      1,
+      0,
+      0
+     ],
+     "min": -90,
+     "max": 90,
+     "graze": [
+      15,
+      15
+     ],
+     "positiveMeans": "roll about the humerus (see mirror caveat)"
+    }
+   ],
+   "radius": 0.0495,
+   "color": "left",
+   "effector": null
+  },
+  {
+   "name": "elbow_L",
+   "role": "leftElbow",
+   "parent": "shoulder_L",
+   "kind": "joint",
+   "offset": [
+    0.34,
+    0.0,
+    0
+   ],
+   "restPosition": [
+    0.53,
+    1.47,
+    0
+   ],
+   "axes": [
+    {
+     "name": "flex",
+     "axis": [
+      0,
+      -1,
+      0
+     ],
+     "min": 0,
+     "max": 150,
+     "graze": [
+      5,
+      3
+     ],
+     "positiveMeans": "hinge: hand toward the face"
+    }
+   ],
+   "radius": 0.0495,
+   "color": "left",
+   "effector": null
+  },
+  {
+   "name": "wrist_L",
+   "role": "leftWrist",
+   "parent": "elbow_L",
+   "kind": "joint",
+   "offset": [
+    0.26,
+    0.0,
+    0
+   ],
+   "restPosition": [
+    0.79,
+    1.47,
+    0
+   ],
+   "axes": [
+    {
+     "name": "flex",
+     "axis": [
+      0,
+      0,
+      -1
+     ],
+     "min": -70,
+     "max": 80,
+     "graze": [
+      10,
+      10
+     ],
+     "positiveMeans": "curl toward the palm"
+    },
+    {
+     "name": "side",
+     "axis": [
+      0,
+      1,
+      0
+     ],
+     "min": -20,
+     "max": 30,
+     "graze": [
+      5,
+      5
+     ],
+     "positiveMeans": "radial deviation (thumb side up)"
+    },
+    {
+     "name": "twist",
+     "axis": [
+      1,
+      0,
+      0
+     ],
+     "min": -80,
+     "max": 80,
+     "graze": [
+      10,
+      10
+     ],
+     "positiveMeans": "carries radioulnar pronation/supination"
+    }
+   ],
+   "radius": 0.0385,
+   "color": "left",
+   "effector": "hand_L"
+  },
+  {
+   "name": "hip_L",
+   "role": "leftHip",
+   "parent": "hips",
+   "kind": "joint",
+   "offset": [
+    0.09,
+    -0.03,
+    0
+   ],
+   "restPosition": [
+    0.09,
+    0.95,
+    0
+   ],
+   "axes": [
+    {
+     "name": "flex",
+     "axis": [
+      -1,
+      0,
+      0
+     ],
+     "min": -20,
+     "max": 120,
+     "graze": [
+      8,
+      5
+     ],
+     "positiveMeans": "raise the knee forward"
+    },
+    {
+     "name": "side",
+     "axis": [
+      0,
+      0,
+      1
+     ],
+     "min": -30,
+     "max": 45,
+     "graze": [
+      8,
+      5
+     ],
+     "positiveMeans": "open the leg outward"
+    },
+    {
+     "name": "twist",
+     "axis": [
+      0,
+      1,
+      0
+     ],
+     "min": -40,
+     "max": 40,
+     "graze": [
+      10,
+      10
+     ],
+     "positiveMeans": "femur rotation, + = toe out"
+    }
+   ],
+   "radius": 0.088,
+   "color": "left",
+   "effector": null
+  },
+  {
+   "name": "knee_L",
+   "role": "leftKnee",
+   "parent": "hip_L",
+   "kind": "joint",
+   "offset": [
+    0.0,
+    -0.44,
+    0
+   ],
+   "restPosition": [
+    0.09,
+    0.51,
+    0
+   ],
+   "axes": [
+    {
+     "name": "flex",
+     "axis": [
+      1,
+      0,
+      0
+     ],
+     "min": 0,
+     "max": 150,
+     "graze": [
+      0,
+      5
+     ],
+     "positiveMeans": "hinge: heel toward the butt"
+    }
+   ],
+   "radius": 0.077,
+   "color": "left",
+   "effector": null
+  },
+  {
+   "name": "ankle_L",
+   "role": "leftAnkle",
+   "parent": "knee_L",
+   "kind": "joint",
+   "offset": [
+    0.0,
+    -0.44,
+    0
+   ],
+   "restPosition": [
+    0.09,
+    0.07,
+    0
+   ],
+   "axes": [
+    {
+     "name": "flex",
+     "axis": [
+      -1,
+      0,
+      0
+     ],
+     "min": -50,
+     "max": 20,
+     "graze": [
+      10,
+      10
+     ],
+     "positiveMeans": "dorsiflexion: toes up"
+    },
+    {
+     "name": "side",
+     "axis": [
+      0,
+      1,
+      0
+     ],
+     "min": -20,
+     "max": 20,
+     "graze": [
+      5,
+      5
+     ],
+     "positiveMeans": "subtalar: sole toward the midline"
+    }
+   ],
+   "radius": 0.055,
+   "color": "left",
+   "effector": "foot_L"
+  },
+  {
+   "name": "toe_L",
+   "role": "leftFootEnd",
+   "parent": "ankle_L",
+   "kind": "joint",
+   "offset": [
+    0.0,
+    -0.05,
+    0.14
+   ],
+   "restPosition": [
+    0.09,
+    0.02,
+    0.14
+   ],
+   "axes": [
+    {
+     "name": "flex",
+     "axis": [
+      -1,
+      0,
+      0
+     ],
+     "min": -20,
+     "max": 60,
+     "graze": [
+      5,
+      10
+     ],
+     "positiveMeans": "toes bend up (push-off)"
+    }
+   ],
+   "radius": 0.044,
+   "color": "left",
+   "effector": "toe_L"
+  },
+  {
+   "name": "clavicle_R",
+   "role": "rightShoulder",
+   "parent": "chest",
+   "kind": "joint",
+   "offset": [
+    -0.03,
+    0.15,
+    0
+   ],
+   "restPosition": [
+    -0.03,
+    1.45,
+    0
+   ],
+   "axes": [
+    {
+     "name": "flex",
+     "axis": [
+      0,
+      1,
+      0
+     ],
+     "min": -20,
+     "max": 20,
+     "graze": [
+      5,
+      5
+     ],
+     "positiveMeans": "shoulder girdle forward (protract)"
+    },
+    {
+     "name": "side",
+     "axis": [
+      0,
+      0,
+      -1
+     ],
+     "min": -10,
+     "max": 35,
+     "graze": [
+      2,
+      5
+     ],
+     "positiveMeans": "shrug up; needed for overhead reach"
+    }
+   ],
+   "radius": 0.0385,
+   "color": "right",
+   "effector": null
+  },
+  {
+   "name": "shoulder_R",
+   "role": "rightArm",
+   "parent": "clavicle_R",
+   "kind": "joint",
+   "offset": [
+    -0.16,
+    0.02,
+    0
+   ],
+   "restPosition": [
+    -0.19,
+    1.47,
+    0
+   ],
+   "axes": [
+    {
+     "name": "flex",
+     "axis": [
+      0,
+      1,
+      0
+     ],
+     "min": -60,
+     "max": 130,
+     "graze": [
+      8,
+      8
+     ],
+     "positiveMeans": "swing the arm forward in the transverse plane"
+    },
+    {
+     "name": "side",
+     "axis": [
+      0,
+      0,
+      -1
+     ],
+     "min": -100,
+     "max": 80,
+     "graze": [
+      5,
+      10
+     ],
+     "positiveMeans": "raise away from the body; -90 hangs at the side"
+    },
+    {
+     "name": "twist",
+     "axis": [
+      1,
+      0,
+      0
+     ],
+     "min": -90,
+     "max": 90,
+     "graze": [
+      15,
+      15
+     ],
+     "positiveMeans": "roll about the humerus (see mirror caveat)"
+    }
+   ],
+   "radius": 0.0495,
+   "color": "right",
+   "effector": null
+  },
+  {
+   "name": "elbow_R",
+   "role": "rightElbow",
+   "parent": "shoulder_R",
+   "kind": "joint",
+   "offset": [
+    -0.34,
+    0.0,
+    0
+   ],
+   "restPosition": [
+    -0.53,
+    1.47,
+    0
+   ],
+   "axes": [
+    {
+     "name": "flex",
+     "axis": [
+      0,
+      1,
+      0
+     ],
+     "min": 0,
+     "max": 150,
+     "graze": [
+      5,
+      3
+     ],
+     "positiveMeans": "hinge: hand toward the face"
+    }
+   ],
+   "radius": 0.0495,
+   "color": "right",
+   "effector": null
+  },
+  {
+   "name": "wrist_R",
+   "role": "rightWrist",
+   "parent": "elbow_R",
+   "kind": "joint",
+   "offset": [
+    -0.26,
+    0.0,
+    0
+   ],
+   "restPosition": [
+    -0.79,
+    1.47,
+    0
+   ],
+   "axes": [
+    {
+     "name": "flex",
+     "axis": [
+      0,
+      0,
+      1
+     ],
+     "min": -70,
+     "max": 80,
+     "graze": [
+      10,
+      10
+     ],
+     "positiveMeans": "curl toward the palm"
+    },
+    {
+     "name": "side",
+     "axis": [
+      0,
+      -1,
+      0
+     ],
+     "min": -20,
+     "max": 30,
+     "graze": [
+      5,
+      5
+     ],
+     "positiveMeans": "radial deviation (thumb side up)"
+    },
+    {
+     "name": "twist",
+     "axis": [
+      1,
+      0,
+      0
+     ],
+     "min": -80,
+     "max": 80,
+     "graze": [
+      10,
+      10
+     ],
+     "positiveMeans": "carries radioulnar pronation/supination"
+    }
+   ],
+   "radius": 0.0385,
+   "color": "right",
+   "effector": "hand_R"
+  },
+  {
+   "name": "hip_R",
+   "role": "rightHip",
+   "parent": "hips",
+   "kind": "joint",
+   "offset": [
+    -0.09,
+    -0.03,
+    0
+   ],
+   "restPosition": [
+    -0.09,
+    0.95,
+    0
+   ],
+   "axes": [
+    {
+     "name": "flex",
+     "axis": [
+      -1,
+      0,
+      0
+     ],
+     "min": -20,
+     "max": 120,
+     "graze": [
+      8,
+      5
+     ],
+     "positiveMeans": "raise the knee forward"
+    },
+    {
+     "name": "side",
+     "axis": [
+      0,
+      0,
+      -1
+     ],
+     "min": -30,
+     "max": 45,
+     "graze": [
+      8,
+      5
+     ],
+     "positiveMeans": "open the leg outward"
+    },
+    {
+     "name": "twist",
+     "axis": [
+      0,
+      -1,
+      0
+     ],
+     "min": -40,
+     "max": 40,
+     "graze": [
+      10,
+      10
+     ],
+     "positiveMeans": "femur rotation, + = toe out"
+    }
+   ],
+   "radius": 0.088,
+   "color": "right",
+   "effector": null
+  },
+  {
+   "name": "knee_R",
+   "role": "rightKnee",
+   "parent": "hip_R",
+   "kind": "joint",
+   "offset": [
+    0.0,
+    -0.44,
+    0
+   ],
+   "restPosition": [
+    -0.09,
+    0.51,
+    0
+   ],
+   "axes": [
+    {
+     "name": "flex",
+     "axis": [
+      1,
+      0,
+      0
+     ],
+     "min": 0,
+     "max": 150,
+     "graze": [
+      0,
+      5
+     ],
+     "positiveMeans": "hinge: heel toward the butt"
+    }
+   ],
+   "radius": 0.077,
+   "color": "right",
+   "effector": null
+  },
+  {
+   "name": "ankle_R",
+   "role": "rightAnkle",
+   "parent": "knee_R",
+   "kind": "joint",
+   "offset": [
+    0.0,
+    -0.44,
+    0
+   ],
+   "restPosition": [
+    -0.09,
+    0.07,
+    0
+   ],
+   "axes": [
+    {
+     "name": "flex",
+     "axis": [
+      -1,
+      0,
+      0
+     ],
+     "min": -50,
+     "max": 20,
+     "graze": [
+      10,
+      10
+     ],
+     "positiveMeans": "dorsiflexion: toes up"
+    },
+    {
+     "name": "side",
+     "axis": [
+      0,
+      -1,
+      0
+     ],
+     "min": -20,
+     "max": 20,
+     "graze": [
+      5,
+      5
+     ],
+     "positiveMeans": "subtalar: sole toward the midline"
+    }
+   ],
+   "radius": 0.055,
+   "color": "right",
+   "effector": "foot_R"
+  },
+  {
+   "name": "toe_R",
+   "role": "rightFootEnd",
+   "parent": "ankle_R",
+   "kind": "joint",
+   "offset": [
+    0.0,
+    -0.05,
+    0.14
+   ],
+   "restPosition": [
+    -0.09,
+    0.02,
+    0.14
+   ],
+   "axes": [
+    {
+     "name": "flex",
+     "axis": [
+      -1,
+      0,
+      0
+     ],
+     "min": -20,
+     "max": 60,
+     "graze": [
+      5,
+      10
+     ],
+     "positiveMeans": "toes bend up (push-off)"
+    }
+   ],
+   "radius": 0.044,
+   "color": "right",
+   "effector": "toe_R"
+  },
+  {
+   "name": "head_end",
+   "role": "headEnd",
+   "parent": "head",
+   "kind": "endSite",
+   "offset": [
+    0,
+    0.18,
+    0.02
+   ],
+   "restPosition": [
+    0,
+    1.8,
+    0.02
+   ],
+   "axes": [],
+   "radius": 0.055,
+   "color": "center",
+   "effector": null
+  },
+  {
+   "name": "hand_end_L",
+   "role": "leftHandEnd",
+   "parent": "wrist_L",
+   "kind": "endSite",
+   "offset": [
+    0.19,
+    0.0,
+    0
+   ],
+   "restPosition": [
+    0.98,
+    1.47,
+    0
+   ],
+   "axes": [],
+   "radius": 0.033,
+   "color": "left",
+   "effector": null
+  },
+  {
+   "name": "toe_end_L",
+   "role": "leftToeEnd",
+   "parent": "toe_L",
+   "kind": "endSite",
+   "offset": [
+    0.0,
+    -0.02,
+    0.07
+   ],
+   "restPosition": [
+    0.09,
+    0.0,
+    0.21
+   ],
+   "axes": [],
+   "radius": 0.033,
+   "color": "left",
+   "effector": null
+  },
+  {
+   "name": "hand_end_R",
+   "role": "rightHandEnd",
+   "parent": "wrist_R",
+   "kind": "endSite",
+   "offset": [
+    -0.19,
+    0.0,
+    0
+   ],
+   "restPosition": [
+    -0.98,
+    1.47,
+    0
+   ],
+   "axes": [],
+   "radius": 0.033,
+   "color": "right",
+   "effector": null
+  },
+  {
+   "name": "toe_end_R",
+   "role": "rightToeEnd",
+   "parent": "toe_R",
+   "kind": "endSite",
+   "offset": [
+    0.0,
+    -0.02,
+    0.07
+   ],
+   "restPosition": [
+    -0.09,
+    0.0,
+    0.21
+   ],
+   "axes": [],
+   "radius": 0.033,
+   "color": "right",
+   "effector": null
+  }
+ ],
+ "bones": [
+  {
+   "name": "pelvis_L",
+   "from": "hips",
+   "to": "hip_L",
+   "radius": 0.08,
+   "length": 0.0949,
+   "clearanceAtRest": 0.87,
+   "sinksBelowFloor": false
+  },
+  {
+   "name": "pelvis_R",
+   "from": "hips",
+   "to": "hip_R",
+   "radius": 0.08,
+   "length": 0.0949,
+   "clearanceAtRest": 0.87,
+   "sinksBelowFloor": false
+  },
+  {
+   "name": "lower_spine",
+   "from": "hips",
+   "to": "spine",
+   "radius": 0.12,
+   "length": 0.12,
+   "clearanceAtRest": 0.86,
+   "sinksBelowFloor": false
+  },
+  {
+   "name": "upper_spine",
+   "from": "spine",
+   "to": "chest",
+   "radius": 0.13,
+   "length": 0.2,
+   "clearanceAtRest": 0.97,
+   "sinksBelowFloor": false
+  },
+  {
+   "name": "upper_chest",
+   "from": "chest",
+   "to": "neck",
+   "radius": 0.12,
+   "length": 0.2,
+   "clearanceAtRest": 1.18,
+   "sinksBelowFloor": false
+  },
+  {
+   "name": "neck_bone",
+   "from": "neck",
+   "to": "head",
+   "radius": 0.05,
+   "length": 0.12,
+   "clearanceAtRest": 1.45,
+   "sinksBelowFloor": false
+  },
+  {
+   "name": "clavicle_bone_L",
+   "from": "clavicle_L",
+   "to": "shoulder_L",
+   "radius": 0.035,
+   "length": 0.1612,
+   "clearanceAtRest": 1.415,
+   "sinksBelowFloor": false
+  },
+  {
+   "name": "upper_arm_L",
+   "from": "shoulder_L",
+   "to": "elbow_L",
+   "radius": 0.045,
+   "length": 0.34,
+   "clearanceAtRest": 1.425,
+   "sinksBelowFloor": false
+  },
+  {
+   "name": "forearm_L",
+   "from": "elbow_L",
+   "to": "wrist_L",
+   "radius": 0.035,
+   "length": 0.26,
+   "clearanceAtRest": 1.435,
+   "sinksBelowFloor": false
+  },
+  {
+   "name": "hand_L",
+   "from": "wrist_L",
+   "to": "hand_end_L",
+   "radius": 0.03,
+   "length": 0.19,
+   "clearanceAtRest": 1.44,
+   "sinksBelowFloor": false
+  },
+  {
+   "name": "thigh_L",
+   "from": "hip_L",
+   "to": "knee_L",
+   "radius": 0.07,
+   "length": 0.44,
+   "clearanceAtRest": 0.44,
+   "sinksBelowFloor": false
+  },
+  {
+   "name": "shin_L",
+   "from": "knee_L",
+   "to": "ankle_L",
+   "radius": 0.05,
+   "length": 0.44,
+   "clearanceAtRest": 0.02,
+   "sinksBelowFloor": false
+  },
+  {
+   "name": "foot_L",
+   "from": "ankle_L",
+   "to": "toe_L",
+   "radius": 0.04,
+   "length": 0.1487,
+   "clearanceAtRest": -0.02,
+   "sinksBelowFloor": true
+  },
+  {
+   "name": "toe_bone_L",
+   "from": "toe_L",
+   "to": "toe_end_L",
+   "radius": 0.03,
+   "length": 0.0728,
+   "clearanceAtRest": -0.03,
+   "sinksBelowFloor": true
+  },
+  {
+   "name": "clavicle_bone_R",
+   "from": "clavicle_R",
+   "to": "shoulder_R",
+   "radius": 0.035,
+   "length": 0.1612,
+   "clearanceAtRest": 1.415,
+   "sinksBelowFloor": false
+  },
+  {
+   "name": "upper_arm_R",
+   "from": "shoulder_R",
+   "to": "elbow_R",
+   "radius": 0.045,
+   "length": 0.34,
+   "clearanceAtRest": 1.425,
+   "sinksBelowFloor": false
+  },
+  {
+   "name": "forearm_R",
+   "from": "elbow_R",
+   "to": "wrist_R",
+   "radius": 0.035,
+   "length": 0.26,
+   "clearanceAtRest": 1.435,
+   "sinksBelowFloor": false
+  },
+  {
+   "name": "hand_R",
+   "from": "wrist_R",
+   "to": "hand_end_R",
+   "radius": 0.03,
+   "length": 0.19,
+   "clearanceAtRest": 1.44,
+   "sinksBelowFloor": false
+  },
+  {
+   "name": "thigh_R",
+   "from": "hip_R",
+   "to": "knee_R",
+   "radius": 0.07,
+   "length": 0.44,
+   "clearanceAtRest": 0.44,
+   "sinksBelowFloor": false
+  },
+  {
+   "name": "shin_R",
+   "from": "knee_R",
+   "to": "ankle_R",
+   "radius": 0.05,
+   "length": 0.44,
+   "clearanceAtRest": 0.02,
+   "sinksBelowFloor": false
+  },
+  {
+   "name": "foot_R",
+   "from": "ankle_R",
+   "to": "toe_R",
+   "radius": 0.04,
+   "length": 0.1487,
+   "clearanceAtRest": -0.02,
+   "sinksBelowFloor": true
+  },
+  {
+   "name": "toe_bone_R",
+   "from": "toe_R",
+   "to": "toe_end_R",
+   "radius": 0.03,
+   "length": 0.0728,
+   "clearanceAtRest": -0.03,
+   "sinksBelowFloor": true
+  }
+ ],
+ "markers": [
+  {
+   "name": "heel_L",
+   "role": "heel_L",
+   "parent": "ankle_L",
+   "offset": [
+    0.0,
+    -0.07,
+    -0.05
+   ],
+   "restPosition": [
+    0.09,
+    0.0,
+    -0.05
+   ],
+   "contact": true
+  },
+  {
+   "name": "ball_L",
+   "role": "ball_L",
+   "parent": "ankle_L",
+   "offset": [
+    0.0,
+    -0.07,
+    0.14
+   ],
+   "restPosition": [
+    0.09,
+    0.0,
+    0.14
+   ],
+   "contact": true
+  },
+  {
+   "name": "toe_tip_L",
+   "role": "toe_tip_L",
+   "parent": "toe_L",
+   "offset": [
+    0.0,
+    -0.02,
+    0.07
+   ],
+   "restPosition": [
+    0.09,
+    0.0,
+    0.21
+   ],
+   "contact": true
+  },
+  {
+   "name": "heel_R",
+   "role": "heel_R",
+   "parent": "ankle_R",
+   "offset": [
+    0.0,
+    -0.07,
+    -0.05
+   ],
+   "restPosition": [
+    -0.09,
+    0.0,
+    -0.05
+   ],
+   "contact": true
+  },
+  {
+   "name": "ball_R",
+   "role": "ball_R",
+   "parent": "ankle_R",
+   "offset": [
+    0.0,
+    -0.07,
+    0.14
+   ],
+   "restPosition": [
+    -0.09,
+    0.0,
+    0.14
+   ],
+   "contact": true
+  },
+  {
+   "name": "toe_tip_R",
+   "role": "toe_tip_R",
+   "parent": "toe_R",
+   "offset": [
+    0.0,
+    -0.02,
+    0.07
+   ],
+   "restPosition": [
+    -0.09,
+    0.0,
+    0.21
+   ],
+   "contact": true
+  }
+ ],
+ "effectors": [
+  {
+   "name": "hand_L",
+   "tip": "hand_end_L",
+   "root": "shoulder_L",
+   "mid": "elbow_L"
+  },
+  {
+   "name": "hand_R",
+   "tip": "hand_end_R",
+   "root": "shoulder_R",
+   "mid": "elbow_R"
+  },
+  {
+   "name": "foot_L",
+   "tip": "ankle_L",
+   "root": "hip_L",
+   "mid": "knee_L"
+  },
+  {
+   "name": "foot_R",
+   "tip": "ankle_R",
+   "root": "hip_R",
+   "mid": "knee_R"
+  }
+ ],
+ "ikChains": [
+  {
+   "effector": "hand_L",
+   "tip": "hand_end_L",
+   "root": "shoulder_L",
+   "mid": "elbow_L",
+   "pole": [
+    0,
+    -1,
+    0
+   ],
+   "poleNote": "elbows point back/down: the pole is the direction the mid joint bulges",
+   "name": "hand_L"
+  },
+  {
+   "effector": "hand_R",
+   "tip": "hand_end_R",
+   "root": "shoulder_R",
+   "mid": "elbow_R",
+   "pole": [
+    0,
+    -1,
+    0
+   ],
+   "name": "hand_R"
+  },
+  {
+   "effector": "foot_L",
+   "tip": "ankle_L",
+   "root": "hip_L",
+   "mid": "knee_L",
+   "pole": [
+    0,
+    0,
+    1
+   ],
+   "poleNote": "knees point forward (+Z)",
+   "name": "foot_L"
+  },
+  {
+   "effector": "foot_R",
+   "tip": "ankle_R",
+   "root": "hip_R",
+   "mid": "knee_R",
+   "pole": [
+    0,
+    0,
+    1
+   ],
+   "name": "foot_R"
+  }
+ ],
+ "restPose": {
+  "joints": {
+   "hips": [
+    0,
+    0.98,
+    0
+   ],
+   "spine": [
+    0,
+    1.1,
+    0
+   ],
+   "chest": [
+    0,
+    1.3,
+    0
+   ],
+   "neck": [
+    0,
+    1.5,
+    0
+   ],
+   "head": [
+    0,
+    1.62,
+    0
+   ],
+   "clavicle_L": [
+    0.03,
+    1.45,
+    0
+   ],
+   "shoulder_L": [
+    0.19,
+    1.47,
+    0
+   ],
+   "elbow_L": [
+    0.53,
+    1.47,
+    0
+   ],
+   "wrist_L": [
+    0.79,
+    1.47,
+    0
+   ],
+   "hip_L": [
+    0.09,
+    0.95,
+    0
+   ],
+   "knee_L": [
+    0.09,
+    0.51,
+    0
+   ],
+   "ankle_L": [
+    0.09,
+    0.07,
+    0
+   ],
+   "toe_L": [
+    0.09,
+    0.02,
+    0.14
+   ],
+   "clavicle_R": [
+    -0.03,
+    1.45,
+    0
+   ],
+   "shoulder_R": [
+    -0.19,
+    1.47,
+    0
+   ],
+   "elbow_R": [
+    -0.53,
+    1.47,
+    0
+   ],
+   "wrist_R": [
+    -0.79,
+    1.47,
+    0
+   ],
+   "hip_R": [
+    -0.09,
+    0.95,
+    0
+   ],
+   "knee_R": [
+    -0.09,
+    0.51,
+    0
+   ],
+   "ankle_R": [
+    -0.09,
+    0.07,
+    0
+   ],
+   "toe_R": [
+    -0.09,
+    0.02,
+    0.14
+   ],
+   "head_end": [
+    0,
+    1.8,
+    0.02
+   ],
+   "hand_end_L": [
+    0.98,
+    1.47,
+    0
+   ],
+   "toe_end_L": [
+    0.09,
+    0.0,
+    0.21
+   ],
+   "hand_end_R": [
+    -0.98,
+    1.47,
+    0
+   ],
+   "toe_end_R": [
+    -0.09,
+    0.0,
+    0.21
+   ]
+  },
+  "markers": {
+   "heel_L": [
+    0.09,
+    0.0,
+    -0.05
+   ],
+   "ball_L": [
+    0.09,
+    0.0,
+    0.14
+   ],
+   "toe_tip_L": [
+    0.09,
+    0.0,
+    0.21
+   ],
+   "heel_R": [
+    -0.09,
+    0.0,
+    -0.05
+   ],
+   "ball_R": [
+    -0.09,
+    0.0,
+    0.14
+   ],
+   "toe_tip_R": [
+    -0.09,
+    0.0,
+    0.21
+   ]
+  },
+  "note": "flat lookup of world rest positions for the viewer, the checks and get_rig; derived from offsets by the generator so it can never drift out of sync"
+ }
+}

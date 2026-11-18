@@ -1,0 +1,29 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      # the rig is generated: CI proves the committed JSON is what the generator produces today,
+      # and that its 17 invariants hold, before anything compiles
+      - name: rig generator + semantic checks
+        run: |
+          python3 tools/gen-rig.py
+          python3 tools/check-rig.py
+          git diff --exit-code core/src/rig/humanoid.rig.json || {
+            echo "::error::humanoid.rig.json is stale — run: python3 tools/gen-rig.py"; exit 1; }
+      - run: npm run lint
+      - run: npm test
+      - run: npm run typecheck
+      - run: npm run build

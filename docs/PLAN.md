@@ -13,21 +13,21 @@ made so you have something concrete to react to — say the word and it changes 
 
 ## 1. Stack
 
-| Layer | Pick | Why |
-| --- | --- | --- |
-| Build | **Vite + TypeScript (strict)** | instant HMR, ships a worker + wasm config that actually works |
-| UI | **React 19** **[veto me]** | the editor is a panel-dense app (dopesheet, inspector, library); React's ecosystem wins over three.js-purism here. Svelte would also be fine |
-| 3D | **three.js** | the only library where `SkinnedMesh` + `AnimationClip` + `GLTFExporter` are all first-party, so rig preview and GLB export share one scene graph |
-| Capture | **`@mediapipe/tasks-vision` `PoseLandmarker`** | runs in-browser, no install, 33 landmarks + `worldLandmarks` (meters, hips-relative) + per-landmark visibility; `LIVE_STREAM` for the camera, `VIDEO` mode to re-run on a recorded file — which is also how CI tests it |
-| State | **zustand** + a plain-`class Clip` in a worker | React for panels; clip data must live *outside* React because bake/smooth loops touch 10⁴–10⁵ floats per frame |
-| Validation | **zod** | one schema generates the TS types *and* the runtime validator for `.anim` files; a bad drop-in file must produce an error that names the field |
-| Storage | **OPFS** (`navigator.storage.getDirectory()`) + File System Access API | a real clip library on disk, no server, no IndexedDB blob gymnastics; "Export to .bvh" is a one-liner with `showSaveFilePicker` |
-| Tests | **vitest** (unit + property) · **playwright** (e2e on a recorded video, never a live camera) | |
-| Formats CI | optional headless **Blender** (`blender -b -P script.py`) | Blender imports BVH natively and exports FBX — it is a free, scriptable oracle that says whether our BVH is *really* valid |
-| Backend | **none until M7** | the whole first pipeline is client-side; a GPU service is a separate deployable and should stay that way |
+| Layer      | Pick                                                                                         | Why                                                                                                                                                                                                                     |
+| ---------- | -------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Build      | **Vite + TypeScript (strict)**                                                               | instant HMR, ships a worker + wasm config that actually works                                                                                                                                                           |
+| UI         | **React 19** **[veto me]**                                                                   | the editor is a panel-dense app (dopesheet, inspector, library); React's ecosystem wins over three.js-purism here. Svelte would also be fine                                                                            |
+| 3D         | **three.js**                                                                                 | the only library where `SkinnedMesh` + `AnimationClip` + `GLTFExporter` are all first-party, so rig preview and GLB export share one scene graph                                                                        |
+| Capture    | **`@mediapipe/tasks-vision` `PoseLandmarker`**                                               | runs in-browser, no install, 33 landmarks + `worldLandmarks` (meters, hips-relative) + per-landmark visibility; `LIVE_STREAM` for the camera, `VIDEO` mode to re-run on a recorded file — which is also how CI tests it |
+| State      | **zustand** + a plain-`class Clip` in a worker                                               | React for panels; clip data must live _outside_ React because bake/smooth loops touch 10⁴–10⁵ floats per frame                                                                                                          |
+| Validation | **zod**                                                                                      | one schema generates the TS types _and_ the runtime validator for `.anim` files; a bad drop-in file must produce an error that names the field                                                                          |
+| Storage    | **OPFS** (`navigator.storage.getDirectory()`) + File System Access API                       | a real clip library on disk, no server, no IndexedDB blob gymnastics; "Export to .bvh" is a one-liner with `showSaveFilePicker`                                                                                         |
+| Tests      | **vitest** (unit + property) · **playwright** (e2e on a recorded video, never a live camera) |                                                                                                                                                                                                                         |
+| Formats CI | optional headless **Blender** (`blender -b -P script.py`)                                    | Blender imports BVH natively and exports FBX — it is a free, scriptable oracle that says whether our BVH is _really_ valid                                                                                              |
+| Backend    | **none until M7**                                                                            | the whole first pipeline is client-side; a GPU service is a separate deployable and should stay that way                                                                                                                |
 
 No `package.json` monorepo tooling beyond **pnpm workspaces**, because the format code has to run
-in Node *and* the browser with zero DOM dependencies — that constraint is what forces the split.
+in Node _and_ the browser with zero DOM dependencies — that constraint is what forces the split.
 
 ```
 /                       pnpm workspace
@@ -56,18 +56,18 @@ knees and elbows. It also passed the checks I ran: every bone length matched the
 (thigh 0.44, shin 0.44, ankle→toe 0.149, upper arm 0.34, forearm 0.26, hand 0.19), and the
 0.528 leg/height ratio sits inside the 0.51–0.55 anthropometric band. What had to change:
 
-| # | Issue | Fix |
-| --- | --- | --- |
-| 1 | **"X = bend forward/back" is a world-space rule and cannot be global.** It holds for the spine, head and legs (bones pointing ±Y) but a T-pose arm points along ±X, so elbow flexion lives on **Y** and humerus twist on **X**; clavicle *raise* is about **Z**, not the twist column it was listed under. Applying your table literally would dislocate both shoulders and swing the arms into the torso instead of raising them. | every DoF declares `{axis, sign}` per joint in the CRP local frame, authored in the skeleton file. Anatomical labels (flexion/abduction/raise) stay positive, `sign` reconciles them with the axis. Full axis table in [DATA-FORMAT.md](DATA-FORMAT.md#axes-the-part-of-the-table-that-could-not-be-inherited) |
-| 2 | **Head sphere on the head joint.** Head joint = skull base at 1.62; a 0.11 sphere centred there puts the crown at 1.73 on a 1.80 character and makes everyone look 7 cm shorter in the preview — which then feeds back into every "does this look right" judgement. | primitive offset to `[0, 0.09, 0.012]`, r 0.095 with `ellipsoidScale [0.80, 1.0, 1.06]` (a skull is ~4 cm narrower than it is deep) → crown 1.805. Plus a `headEnd` leaf so the skull hangs off a real bone |
-| 3 | **Rigidity vs. the "one larger sphere for the head" phrasing:** spheres are per *joint*, so the sphere must be parented to the joint it visualises, and `head`'s pivot stays at the skull base. | `mesh.jointSpheres.scale = 1.15 × widest cylinder it joins` (your tip 3, made computable) |
+| #   | Issue                                                                                                                                                                                                                                                                                                                                                                                                                              | Fix                                                                                                                                                                                                                                                                                                            |
+| --- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | **"X = bend forward/back" is a world-space rule and cannot be global.** It holds for the spine, head and legs (bones pointing ±Y) but a T-pose arm points along ±X, so elbow flexion lives on **Y** and humerus twist on **X**; clavicle _raise_ is about **Z**, not the twist column it was listed under. Applying your table literally would dislocate both shoulders and swing the arms into the torso instead of raising them. | every DoF declares `{axis, sign}` per joint in the CRP local frame, authored in the skeleton file. Anatomical labels (flexion/abduction/raise) stay positive, `sign` reconciles them with the axis. Full axis table in [DATA-FORMAT.md](DATA-FORMAT.md#axes-the-part-of-the-table-that-could-not-be-inherited) |
+| 2   | **Head sphere on the head joint.** Head joint = skull base at 1.62; a 0.11 sphere centred there puts the crown at 1.73 on a 1.80 character and makes everyone look 7 cm shorter in the preview — which then feeds back into every "does this look right" judgement.                                                                                                                                                                | primitive offset to `[0, 0.09, 0.012]`, r 0.095 with `ellipsoidScale [0.80, 1.0, 1.06]` (a skull is ~4 cm narrower than it is deep) → crown 1.805. Plus a `headEnd` leaf so the skull hangs off a real bone                                                                                                    |
+| 3   | **Rigidity vs. the "one larger sphere for the head" phrasing:** spheres are per _joint_, so the sphere must be parented to the joint it visualises, and `head`'s pivot stays at the skull base.                                                                                                                                                                                                                                    | `mesh.jointSpheres.scale = 1.15 × widest cylinder it joins` (your tip 3, made computable)                                                                                                                                                                                                                      |
 
 Two things I flagged but did **not** change, so you decide:
 
 - **Fingertip span is 1.96 m on a 1.80 m character** (should be ≈ height; the check is
   `span/height ∈ [0.95, 1.05]`, currently 1.089). Cause: `shoulder` at ±0.19 is the deltoid, the
   glenohumeral centre is ≈±0.17, plus hand 0.19. Cosmetic in the lab, but the ratio is exactly what a
-  retargeter sanity-checks on an imported rig, and a rig that fails it makes *other* rigs look wrong.
+  retargeter sanity-checks on an imported rig, and a rig that fails it makes _other_ rigs look wrong.
   One-line fix in the generator if you want it.
 - **`elbow`/`knee` limits start at hard 0.** IK pushing against a hard 0 jitters; real elbows
   hyperextend ~5°. Added `softMin: -5` / `softMax: 3` as a graze allowance for the solver while the
@@ -77,7 +77,7 @@ Two things I flagged but did **not** change, so you decide:
 ~45-dim vector of clamped scalars, not 26 free quaternions. "Move one joint, everything below follows"
 plus hinge knees/elbows means most random poses are already anatomically legal — which is what your
 summary was getting at, and it is true: it turns Tier B from "generate motion" into "choose good
-numbers in a box", and it makes a *legality* test in CI possible at all.
+numbers in a box", and it makes a _legality_ test in CI possible at all.
 
 ## 2. Architecture
 
@@ -118,10 +118,10 @@ cache-invalidation bugs.
 ### 2.1 Manual posing
 
 - Viewport: pick a joint (raycast against a capsule proxy), drag → arcball rotation of that joint
-  about the *camera* plane, converted to a local quaternion in parent space. Straight two-bone IK
+  about the _camera_ plane, converted to a local quaternion in parent space. Straight two-bone IK
   on shift-drag of an end-effector (wrist/ankle) so posing hands and feet is not miserable.
 - Clamped by the rig's `limits`, per DoF `{axis, sign, min, max, softMin, softMax}`, read from
-  `lab-21.json` (§1.5). The inspector shows the *anatomical* value ("flexion 87°") and the clamp runs
+  `lab-21.json` (§1.5). The inspector shows the _anatomical_ value ("flexion 87°") and the clamp runs
   on the signed value, so a user can never author a pose an engine would reject. Hinges (elbow, knee,
   toe) expose exactly one slider and no gizmo on the other axes — the UI being unable to express an
   illegal channel is a stronger guarantee than a warning after the fact.
@@ -155,28 +155,30 @@ last good pose). That is a real, defensible technical core for the lab, and it i
 between "toy demo" and "usable capture".
 
 Legs are often half out of frame → capture profiles: `full` / `upper` (legs inferred from hip sway
-+ a gait prior) / `seated`. Ship `full` first, and let the manual editor fix the rest — that's the
-loop the whole tool is built around.
+
+- a gait prior) / `seated`. Ship `full` first, and let the manual editor fix the rest — that's the
+  loop the whole tool is built around.
 
 ### 2.3 Processors — where "AI" goes
 
 ```ts
 type Processor = {
-  id: string; label: string;
+  id: string;
+  label: string;
   kind: "local" | "remote";
-  run(input: DenseClip, opts: unknown): Promise<ProcessorResult>;  // diff, not a new clip
-  schema: ZodType<Opts>;               // so the UI auto-generates the controls
+  run(input: DenseClip, opts: unknown): Promise<ProcessorResult>; // diff, not a new clip
+  schema: ZodType<Opts>; // so the UI auto-generates the controls
 };
 ```
 
 Same interface whether it's 20 lines of filtering in a worker or a diffusion model on a GPU box.
-`schema` makes every processor instantly tunable in the UI, which is what makes it a *lab*: sliders,
+`schema` makes every processor instantly tunable in the UI, which is what makes it a _lab_: sliders,
 A/B against the original, and the ability to re-run the chain with different parameters on a clip you
 captured last week.
 
 ## 3. The "AI" part — what it should mean here
 
-Your answer to that question was *"move joints, set keyframes, position etc."* — which is the manual
+Your answer to that question was _"move joints, set keyframes, position etc."_ — which is the manual
 editor, not the AI, so the AI's job is still genuinely open. That's fine, but it's the one thing I
 won't guess, because it decides whether we need a GPU, a dataset, and a month. Ranked by value per
 unit of risk:
@@ -192,7 +194,7 @@ with pitch-preserving resampling · naive delta-retarget onto a named rig.
 **motion autoencoder** (GRU, ~1–3 M params): encode a noisy clip, decode → the output is snapped onto
 the manifold of real human motion. That is genuinely "AI cleaning" and it beats hand-tuned filters on
 occluded frames. A GRU inpainting model (mask some frames, predict them) is the same weights. Also
-here: a per-style fine-tune for *style transfer* (walk → tired/zombie/sneaky) if we have styled data
+here: a per-style fine-tune for _style transfer_ (walk → tired/zombie/sneaky) if we have styled data
 (the "100 Styles" set is exactly this — see licensing, §5).
 
 **Tier C — text→motion on a GPU service.** MLD / GMDM / MDM class models: "a nervous walk, carrying
@@ -203,24 +205,24 @@ latency, and a licensing problem (see below). Treat as its own project with an A
 **My recommendation:** build Tier A as the pipeline's spine (it's required either way — no
 generated motion should ship without smoothing + retarget + foot-lock), design the processor
 interface for Tier B, and treat Tier C as a demo you add once the format is frozen. If you want the
-text→motion demo *first*, that reorders everything (backend before editor) and I'd plan it that way
+text→motion demo _first_, that reorders everything (backend before editor) and I'd plan it that way
 instead — but say so before M0.
 
 ## 4. Milestones
 
 Effort = focused days for one developer using AI codegen assist. Order is chosen so each milestone
-leaves a *usable* thing, and so the format is frozen before the two expensive parts (capture, export).
+leaves a _usable_ thing, and so the format is frozen before the two expensive parts (capture, export).
 
-| | Build | Acceptance — the demo that proves it | Days |
-| --- | --- | --- | --- |
-| **M0** | pnpm workspace, Vite app, strict TS, zod schema + `Clip`/`DenseClip`/bake, three.js scene that loads `fixtures/skeletons/lab-21.json` and draws it, CI runs vitest | `pnpm dev` shows the 26-node rig in CRP (25 cylinders + joint spheres + head ellipsoid, crown at 1.80); the skeleton self-validates in CI (tree invariant, L/R mirror rule, bone lengths, span/height band); `Clip.parse(fixture)` round-trips | 0.5–1 |
-| **M1** | Joint picking + drag-rotate, two-bone IK on end-effectors, DoF clamping from `limits`, pose-only (no time) | The three convention tests pass (raise-left-arm / hip-flex / knee-flex); dragging `elbow.L` and `elbow.R` identically mirrors correctly; a random pose generator with clamped DoFs produces no impossible poses in 10k samples | 2–3 |
-| **M2** | Timeline: play/pause/scrub, keyframe create/move/delete, linear/step/bezier, dopesheet, OPFS save/load | Animate a wave cycle by hand, 30 fps smooth, no dropped frames while dragging keys | 2–3 |
-| **M3** | Format I/O: `.anim` + full BVH import/export + unit & up-axis normalisation | BVH→clip→BVH round-trip is within 1e-4 on baked arrays; **a public BVH from the internet plays correctly in our viewport** — that one test kills most format bugs | 2–3 |
-| **M4** | Webcam + video capture: MediaPipe, the §2.2 solver, capture profiles, landmarks sidecar, live preview while recording | Record a 10 s walk → editable clip → it reads as a walk without manual fixes; scrubbing shows per-landmark confidence | 3–4 |
-| **M5** | Processor chain UI (Tier A all of it) + `Processor` interface with auto-generated controls + A/B compare. Contact states derived from the 6 foot markers (height under threshold + velocity), so `contacts` is an inspectable array in the clip, not a hidden heuristic | Foot-lock visibly kills sliding on a captured clip; the contact graph lines up with heel-strike/toe-off in the viewport; A/B with the original side-by-side on the same canvas | 3–4 |
-| **M6** | Delivery, both GLBs (see §DATA-FORMAT): `lab-preview.glb` (rigid, for the viewport) and a retargeted delivery clip with `roles` in `extras`; Blender BVH→FBX script; Unity C# importer | A GLB opens in [gltf.report](https://gltf.report) with named animations; the FBX lands in Unity with working `Animator` clips on a real rigged character | 2–3 |
-| **M7** | *(optional)* Tier B model in-browser, and/or a Tier C remote service behind the same interface | Same UI, one dropdown change: the noise filter becomes a learned one, and the demo still passes | 5–10 |
+|        | Build                                                                                                                                                                                                                                                                   | Acceptance — the demo that proves it                                                                                                                                                                                                           | Days  |
+| ------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----- |
+| **M0** | pnpm workspace, Vite app, strict TS, zod schema + `Clip`/`DenseClip`/bake, three.js scene that loads `fixtures/skeletons/lab-21.json` and draws it, CI runs vitest                                                                                                      | `pnpm dev` shows the 26-node rig in CRP (25 cylinders + joint spheres + head ellipsoid, crown at 1.80); the skeleton self-validates in CI (tree invariant, L/R mirror rule, bone lengths, span/height band); `Clip.parse(fixture)` round-trips | 0.5–1 |
+| **M1** | Joint picking + drag-rotate, two-bone IK on end-effectors, DoF clamping from `limits`, pose-only (no time)                                                                                                                                                              | The three convention tests pass (raise-left-arm / hip-flex / knee-flex); dragging `elbow.L` and `elbow.R` identically mirrors correctly; a random pose generator with clamped DoFs produces no impossible poses in 10k samples                 | 2–3   |
+| **M2** | Timeline: play/pause/scrub, keyframe create/move/delete, linear/step/bezier, dopesheet, OPFS save/load                                                                                                                                                                  | Animate a wave cycle by hand, 30 fps smooth, no dropped frames while dragging keys                                                                                                                                                             | 2–3   |
+| **M3** | Format I/O: `.anim` + full BVH import/export + unit & up-axis normalisation                                                                                                                                                                                             | BVH→clip→BVH round-trip is within 1e-4 on baked arrays; **a public BVH from the internet plays correctly in our viewport** — that one test kills most format bugs                                                                              | 2–3   |
+| **M4** | Webcam + video capture: MediaPipe, the §2.2 solver, capture profiles, landmarks sidecar, live preview while recording                                                                                                                                                   | Record a 10 s walk → editable clip → it reads as a walk without manual fixes; scrubbing shows per-landmark confidence                                                                                                                          | 3–4   |
+| **M5** | Processor chain UI (Tier A all of it) + `Processor` interface with auto-generated controls + A/B compare. Contact states derived from the 6 foot markers (height under threshold + velocity), so `contacts` is an inspectable array in the clip, not a hidden heuristic | Foot-lock visibly kills sliding on a captured clip; the contact graph lines up with heel-strike/toe-off in the viewport; A/B with the original side-by-side on the same canvas                                                                 | 3–4   |
+| **M6** | Delivery, both GLBs (see §DATA-FORMAT): `lab-preview.glb` (rigid, for the viewport) and a retargeted delivery clip with `roles` in `extras`; Blender BVH→FBX script; Unity C# importer                                                                                  | A GLB opens in [gltf.report](https://gltf.report) with named animations; the FBX lands in Unity with working `Animator` clips on a real rigged character                                                                                       | 2–3   |
+| **M7** | _(optional)_ Tier B model in-browser, and/or a Tier C remote service behind the same interface                                                                                                                                                                          | Same UI, one dropdown change: the noise filter becomes a learned one, and the demo still passes                                                                                                                                                | 5–10  |
 
 **~15–20 days to a genuinely usable lab (M0–M6).** If you want the pitch deck in one week instead:
 M0 → M4 → M5, skipping M2's dopesheet polish (pose-edit can be minimal and still fix captures), then
@@ -233,7 +235,7 @@ convention bug, and conventions are what M3 forces you to write down.
    before M0, since it decides whether a backend exists at all.
 2. **Single-camera capture is mediocre, and pretending otherwise kills the project.** Depth is
    ambiguous, occlusion is constant, there are no hands or face. The plan's answer is the IK-fit in
-   §2.2 plus a manual editor for the residue — the *tool* is the moat, not the model.
+   §2.2 plus a manual editor for the residue — the _tool_ is the moat, not the model.
 3. **Licensing of motion data.** AMASS and HumanML3D (what every text→motion paper trains on) are
    **research-only, non-commercial**; CMU/ACAID have no formal licence and are commonly treated as
    research data; "100 Styles" is distributed as CC0. If this becomes a product, re-check each
@@ -254,8 +256,8 @@ convention bug, and conventions are what M3 forces you to write down.
    role enum is extensible rather than fixed-length). (b) No fingers or face, by your call — capture
    cost is ~3× and the skeleton goes 26 → 60+ nodes, so if that ever changes it changes `lab-21`'s
    successor, not the format. Both are skeleton-file edits; no milestone depends on them.
-8. **Scope creep into "Blender in a browser."** The tie-breaker question for any feature: *does it
-   move motion from a human into an engine clip more reliably?* If not, it's a DCC feature and it
+8. **Scope creep into "Blender in a browser."** The tie-breaker question for any feature: _does it
+   move motion from a human into an engine clip more reliably?_ If not, it's a DCC feature and it
    waits.
 
 ## 6. Open questions (I need these to write M0)
@@ -267,7 +269,7 @@ convention bug, and conventions are what M3 forces you to write down.
    engine bugs.
 3. **Which engine do we test against** — Unity, Unreal, Godot, or "web/GLB only for now"?
 4. **Fingers and face?** Changes the capture model (Pose + Hands + Face blendshapes, ~3× cost) and
-   makes the skeleton 23 → 60+ joints. If the goal is *game locomotion*, the answer is no, and it
+   makes the skeleton 23 → 60+ joints. If the goal is _game locomotion_, the answer is no, and it
    stays out of the format's way.
 5. **Local-only, or hosted/multi-user?** OPFS keeps it serverless; hosted means a clip store, auth,
    and shareable URLs — a decision with real cost, best made now.

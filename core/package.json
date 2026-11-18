@@ -1,0 +1,23 @@
+{
+  "name": "@rigpilot/core",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "description": "Pure motion logic: rig, FK, limits, IK, interpolation, contacts, validation. No DOM, no three.",
+  "scripts": {
+    "build": "tsc -b && node scripts/copy-assets.mjs",
+    "test": "vitest run",
+    "typecheck": "tsc -b --force"
+  }
+}
