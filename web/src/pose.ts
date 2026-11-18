@@ -53,8 +53,7 @@ export class PoseState {
 
   pose(): Record<string, SemanticValues> {
     const out: Record<string, SemanticValues> = {};
-    for (const [joint, m] of this.values)
-      out[joint] = Object.fromEntries(m);
+    for (const [joint, m] of this.values) out[joint] = Object.fromEntries(m);
     return out;
   }
 
