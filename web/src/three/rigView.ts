@@ -4,6 +4,7 @@ import {
   CylinderGeometry,
   Group,
   Mesh,
+  MeshBasicMaterial,
   MeshStandardMaterial,
   Quaternion,
   SphereGeometry,
@@ -14,7 +15,9 @@ import {
   type BoundPrimitive,
   type HumanoidRig,
   type SolveResult,
+  type Vec3,
 } from "@rigpilot/core";
+import { buildHandles, pickHandle, type Ray } from "./pick.js";
 
 /**
  * Draws the studio body: one rigid primitive per bone, one sphere per joint, plus the head and torso
@@ -39,7 +42,20 @@ export class RigView {
   private readonly byJoint = new Map<string, Mesh[]>();
   private readonly selected = new Set<string>();
   private hovered: string | null = null;
+  private readonly hoverRing: Mesh;
+  /** One ring per selected joint, kept after use so a shift-clicked chain does not rebuild geometry. */
+  private readonly selectRings = new Map<string, Mesh>();
+  private readonly ringFor: (color: number, opacity: number) => Mesh;
   private readonly pickableMeshes: Mesh[] = [];
+  /**
+   * Invisible pick handles, one per poseable joint, held in flat arrays so `update()` mutates in place
+   * instead of allocating 21 objects every frame. The radius policy and the aim ranking are pure and tested
+   * in `pick.ts`; what lives here is only their position, which has to follow the pose.
+   */
+  private readonly handleIndex = new Map<string, number>();
+  private readonly handleJoints: string[];
+  private readonly handleRadii: number[];
+  private readonly handleCenters: Float64Array;
 
   constructor(rig: HumanoidRig) {
     const palette =
@@ -54,6 +70,40 @@ export class RigView {
     const unitCyl = new CylinderGeometry(1, 1, 1, 20, 1, true);
     const unitSphere = new SphereGeometry(1, 20, 14);
     const unitBox = new BoxGeometry(1, 1, 1);
+
+    // Aim rings. A handle in the torso is invisible *by construction* — it is there so a buried joint can
+    // be clicked — so the joint needs a mark that is not buried too: a wireframe shell the size of the
+    // handle, drawn over everything. Without this, hovering your own chest highlights a sphere inside the
+    // torso box and the feedback is invisible, which is the same complaint in a different costume.
+    const ring = (color: number, opacity: number): Mesh => {
+      const m = new Mesh(
+        unitSphere,
+        new MeshBasicMaterial({
+          color,
+          wireframe: true,
+          transparent: true,
+          opacity,
+          depthTest: false,
+        }),
+      );
+      m.renderOrder = 999;
+      m.visible = false;
+      return m;
+    };
+    this.hoverRing = ring(0x9dc0ff, 0.5);
+    this.ringFor = ring;
+    this.group.add(this.hoverRing);
+
+    const handles = buildHandles(rig);
+    this.handleJoints = handles.map(h => h.joint);
+    this.handleJoints.forEach((name, i) => this.handleIndex.set(name, i));
+    this.handleRadii = handles.map(h => h.radius);
+    this.handleCenters = new Float64Array(handles.length * 3);
+    handles.forEach((h, i) => {
+      this.handleCenters[i * 3] = h.center[0];
+      this.handleCenters[i * 3 + 1] = h.center[1];
+      this.handleCenters[i * 3 + 2] = h.center[2];
+    });
 
     for (const bound of bindPrimitives(rig)) {
       const geometry =
@@ -84,6 +134,21 @@ export class RigView {
 
   /** world = parentWorld * local, per primitive. ~53 compose calls per frame: cheap, allocation-free. */
   update(solved: SolveResult): void {
+    for (let i = 0; i < this.handleJoints.length; i++) {
+      const joint = solved.joints[this.handleJoints[i]!];
+      if (!joint) continue;
+      // a handle frozen at the rest position would pick the joint the body *was* at, not the one it is at
+      this.handleCenters[i * 3] = joint.position[0];
+      this.handleCenters[i * 3 + 1] = joint.position[1];
+      this.handleCenters[i * 3 + 2] = joint.position[2];
+    }
+    this.placeRing(this.hoverRing, this.hovered);
+    for (const joint of this.selected) {
+      const mesh = this.selectRings.get(joint) ?? this.addSelectRing(joint);
+      this.placeRing(mesh, joint);
+    }
+    for (const [joint, mesh] of this.selectRings)
+      if (!this.selected.has(joint)) mesh.visible = false;
     for (const e of this.entries) {
       const joint = solved.joints[e.parentJoint];
       if (!joint) continue;
@@ -174,6 +239,44 @@ export class RigView {
    * Everything is pickable. Joint spheres alone were 5-7 cm targets floating inside the limb they
    * belonged to; a bone cylinder is the same joint's own geometry, and `parentJoint` maps it back.
    */
+  private addSelectRing(joint: string): Mesh {
+    const mesh = this.ringFor(0x6ea8fe, 0.75);
+    this.selectRings.set(joint, mesh);
+    this.group.add(mesh);
+    return mesh;
+  }
+
+  /** A ring rides its joint's handle: same centre, same radius, so the mark and the grab agree exactly. */
+  private placeRing(mesh: Mesh, joint: string | null): void {
+    const i = joint === null ? undefined : this.handleIndex.get(joint);
+    mesh.visible = i !== undefined;
+    if (i === undefined) return;
+    mesh.position.set(
+      this.handleCenters[i * 3]!,
+      this.handleCenters[i * 3 + 1]!,
+      this.handleCenters[i * 3 + 2]!,
+    );
+    mesh.scale.setScalar(this.handleRadii[i]!);
+  }
+
+  /**
+   * The joint a ray was aimed at, by handle: generous enough that the torso, the wrists and the toes are
+   * all reachable, and ranked by what the pointer was closest to. Null means the aim missed every joint,
+   * which the caller reads as "clicked empty space" rather than "grab the nearest thing anyway".
+   */
+  pickJoint(ray: Ray): string | null {
+    const at = this.handleJoints.map((joint, i) => ({
+      joint,
+      radius: this.handleRadii[i]!,
+      center: [
+        this.handleCenters[i * 3]!,
+        this.handleCenters[i * 3 + 1]!,
+        this.handleCenters[i * 3 + 2]!,
+      ] as Vec3,
+    }));
+    return pickHandle(ray, at)?.joint ?? null;
+  }
+
   pickables(): readonly Mesh[] {
     return this.pickableMeshes;
   }
