@@ -91,8 +91,16 @@ First visit opens a three-step guide; `?` brings it back.
   hand-move. They are data in `labels.ts`, and the test asserts every angle is inside the authored limits
   so clicking one can never produce a correction.
 - **Hover tells you the body is clickable.** One raycast per frame at most (resolved in the render loop,
-  not in `pointermove`), a faint emissive ring, and the joint's name at the cursor. Selection is blue, a
-  flash of green means "this edit moved those joints" — the same hook M3's tool calls will use.
+  not in `pointermove`), a ring the size of the click target, and the joint's name at the cursor. Selection
+  is blue, a flash of green means "this edit moved those joints" — the same hook M3's tool calls will use.
+- **Clicking works where the body is fat, which is exactly where the torso joints hid.** Every poseable
+  joint gets an invisible pick handle sized from the rig's own numbers (`web/src/three/pick.ts`). The drawn
+  spheres are 4–8 cm, while the torso box — 28 cm wide, and owned by `hips`, which has no DoFs — stood in
+  front of `spine` and `chest`, so a click aimed at the chest selected the root and reported "nothing to
+  key here". Handles are ranked by _what the pointer was closest to_ rather than first-hit, so a side view
+  picks the near shoulder instead of reaching through the body for the far one. Drawn bones stay pickable
+  as the fallback, and a genuine miss deselects instead of grabbing whatever was nearby. The hover ring is
+  drawn over the body for the same reason: a sphere buried inside the torso cannot show you its own hover.
 - **A key can be retimed by dragging its diamond**, and the whole frame moves together as one undo step:
   a pose blocked on the wrong frame is the most common fix after blocking a clip.
 - **Everything refuses out loud.** An edit that wrote nothing says why, in a toast and in the activity log;

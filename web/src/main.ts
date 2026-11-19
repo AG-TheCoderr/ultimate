@@ -198,10 +198,21 @@ canvas.addEventListener("pointerleave", () => {
   hover.hidden = true;
   canvas.style.cursor = "grab";
 });
+/**
+ * What a click (or the hover) selects. Handles first — they are generous and ranked by what the pointer was
+ * aimed at, which is what makes the torso, the wrists and the toes reachable at all — then the drawn
+ * geometry, so a click on the middle of a forearm still grabs the joint that bone belongs to.
+ */
+const pickJoint = (at: { clientX: number; clientY: number }): string | null => {
+  const byHandle = view.pickJoint(studio.rayFromPointer(at));
+  if (byHandle) return byHandle;
+  const mesh = studio.pick(at, view.pickables());
+  return mesh ? view.jointOf(mesh) : null;
+};
+
 canvas.addEventListener("pointerup", e => {
   if (dragging) return; // an orbit drag is not a selection
-  const hit = studio.pick(e, view.pickables());
-  const joint = hit ? view.jointOf(hit) : null;
+  const joint = pickJoint(e);
   applySelection(e.shiftKey && joint ? [...store.selected, joint] : joint ? [joint] : [], joint);
 });
 
@@ -284,8 +295,7 @@ window.addEventListener("keydown", e => {
     // hover is resolved here, not in the pointermove handler: one raycast per frame at most
     const at = pending.at;
     pending.at = null;
-    const hit = studio.pick(at, view.pickables());
-    const joint = hit ? view.jointOf(hit) : null;
+    const joint = pickJoint(at);
     view.setHover(joint);
     canvas.style.cursor = joint ? "pointer" : "grab";
     hover.hidden = joint === null;

@@ -12,6 +12,7 @@ import {
   Vector3,
   WebGLRenderer,
 } from "three";
+import type { Vec3 } from "@rigpilot/core";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 
 /**
@@ -82,14 +83,25 @@ export class Studio {
    */
   pick(event: { clientX: number; clientY: number }, targets: readonly Mesh[]): Mesh | null {
     if (!targets.length) return null;
-    const rect = this.canvas.getBoundingClientRect();
-    this.ndc.set(
-      ((event.clientX - rect.left) / rect.width) * 2 - 1,
-      -((event.clientY - rect.top) / rect.height) * 2 + 1,
-    );
-    this.ray.setFromCamera(this.ndc, this.camera);
+    this.rayFromPointer(event);
     const hit = this.ray.intersectObjects([...targets], false)[0];
     return hit ? (hit.object as Mesh) : null;
+  }
+
+  /**
+   * The pointer as a world-space ray, which is what `RigView.pickJoint` ranks handles with. Exposed rather
+   * than kept private because the handles are not three.js objects — and one ray from one place is what
+   * keeps hover, click and mesh-picking answering the same question instead of drifting apart.
+   */
+  rayFromPointer(event: { clientX: number; clientY: number }): { origin: Vec3; dir: Vec3 } {
+    const rect = this.canvas.getBoundingClientRect();
+    this.ndc.set(
+      ((event.clientX - rect.left) / Math.max(rect.width, 1)) * 2 - 1,
+      -((event.clientY - rect.top) / Math.max(rect.height, 1)) * 2 + 1,
+    );
+    this.ray.setFromCamera(this.ndc, this.camera);
+    const { origin, direction } = this.ray.ray;
+    return { origin: [origin.x, origin.y, origin.z], dir: [direction.x, direction.y, direction.z] };
   }
 
   /** Where an orthographic preview camera sits per view (M5 renders PNGs from this). */
